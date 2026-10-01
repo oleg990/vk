@@ -27,6 +27,18 @@ DATA_FILE=$DIR/data/bot.json
 TZ_NAME=Europe/Moscow
 ENV
 fi
+# env.add — новые/изменённые ключи: KEY=VALUE построчно; дописываем в .env и удаляем файл
+if [ -f "$SRC/env.add" ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|\#*) continue ;; esac
+    key="${line%%=*}"
+    grep -v "^${key}=" "$DIR/.env" > "$DIR/.env.tmp" || true
+    printf '%s\n' "$line" >> "$DIR/.env.tmp"
+    mv "$DIR/.env.tmp" "$DIR/.env"
+  done < "$SRC/env.add"
+  rm -f "$SRC/env.add"
+  echo "env.add применён"
+fi
 chown -R realty-bot:realty-bot "$DIR"
 chmod 600 "$DIR/.env"
 install -m 644 "$SRC/realty-bot.service" "$UNIT"

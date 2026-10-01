@@ -16,8 +16,14 @@ type Config struct {
 	DataFile   string // файл хранилища
 	PrivacyURL string // ссылка на политику обработки ПДн
 	CallPhone  string // номер для кнопки «Позвонить Олегу»
-	VKAPIURL   string // по умолчанию https://api.vk.com/method/
-	Timezone   string
+
+	// Автопостинг
+	VKUserToken string // пользовательский ключ (wall, photos, offline) — публикация на стене
+	HFToken     string // токен Hugging Face для генерации фото
+	HFImageURL  string
+	ContentURL  string // откуда брать очередь постов
+	VKAPIURL    string // по умолчанию https://api.vk.com/method/
+	Timezone    string
 }
 
 func Load() (Config, error) {
@@ -26,8 +32,13 @@ func Load() (Config, error) {
 		DataFile:   envOr("DATA_FILE", "data/bot.json"),
 		PrivacyURL: os.Getenv("PRIVACY_URL"),
 		CallPhone:  envOr("CALL_PHONE", "+79205952888"),
-		VKAPIURL:   os.Getenv("VK_API_URL"),
-		Timezone:   envOr("TZ_NAME", "Europe/Moscow"),
+
+		VKUserToken: strings.TrimSpace(os.Getenv("VK_USER_TOKEN")),
+		HFToken:     strings.TrimSpace(os.Getenv("HF_TOKEN")),
+		HFImageURL:  envOr("HF_IMAGE_URL", "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"),
+		ContentURL:  envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
+		VKAPIURL:    os.Getenv("VK_API_URL"),
+		Timezone:    envOr("TZ_NAME", "Europe/Moscow"),
 	}
 	var errs []error
 	if c.VKToken == "" {

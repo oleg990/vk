@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 	_ "time/tzdata"
 
+	"realty-bot/internal/autopost"
 	"realty-bot/internal/bot"
 	"realty-bot/internal/config"
 	"realty-bot/internal/storage"
@@ -57,6 +60,19 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	ap := &autopost.Manager{
+		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
+		Content: autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
+		Gen:     autopost.HF{URL: cfg.HFImageURL, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
+		Store:   store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
+	}
+	if cfg.VKUserToken != "" {
+		ap.Wall = client.WithToken(cfg.VKUserToken)
+	} else {
+		log.Warn("VK_USER_TOKEN не задан: превью постов придут, но публикация будет недоступна")
+	}
+	go ap.Run(ctx, 5*time.Minute)
+
 	return client.Listen(ctx, func(u vk.Update) {
 		if u.Type != "message_new" {
 			return
@@ -68,6 +84,9 @@ func run(log *slog.Logger) error {
 		}
 		msg := m.Message
 		if msg.PeerID != msg.FromID || msg.FromID <= 0 { // только личные сообщения от людей
+			return
+		}
+		if ap.HandleAdmin(ctx, msg.FromID, msg.Text, msg.PayloadMap()) {
 			return
 		}
 		b.Handle(ctx, bot.Incoming{

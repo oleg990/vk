@@ -105,7 +105,7 @@ func (c *Client) Send(ctx context.Context, peerID int64, text string, kb *Keyboa
 	p := url.Values{}
 	p.Set("peer_id", strconv.FormatInt(peerID, 10))
 	p.Set("message", text)
-	p.Set("random_id", strconv.FormatInt(int64(rand.Int32()), 10))
+	p.Set("random_id", strconv.FormatInt(int64(randID()), 10))
 	p.Set("dont_parse_links", "1")
 	if kb != nil {
 		raw, err := json.Marshal(kb)
@@ -116,6 +116,8 @@ func (c *Client) Send(ctx context.Context, peerID int64, text string, kb *Keyboa
 	}
 	return c.call(ctx, "messages.send", p, nil)
 }
+
+func randID() int32 { return rand.Int32() }
 
 // UserName возвращает «Имя Фамилия» пользователя.
 func (c *Client) UserName(ctx context.Context, userID int64) (string, error) {
