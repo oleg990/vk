@@ -1,0 +1,18 @@
+[Unit]
+Description=VK bot «Олег Маханько | Недвижимость»
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=realty-bot
+WorkingDirectory=/opt/realty-bot
+EnvironmentFile=/opt/realty-bot/.env
+ExecStart=/opt/realty-bot/realty-bot
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/realty-bot/data
+
+[Install]
+WantedBy=multi-user.target
