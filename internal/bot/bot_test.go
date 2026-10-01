@@ -93,12 +93,6 @@ func TestSellFlowCreatesLeadWithEstimate(t *testing.T) {
 	} {
 		say(b, user, msg)
 	}
-	// фото
-	b.Handle(ctx, Incoming{UserID: user, Photos: []string{"https://img/1.jpg", "https://img/2.jpg"}, Payload: map[string]string{}})
-	if !strings.Contains(fs.last().text, "2 из 10") {
-		t.Fatalf("photo ack = %q", fs.last().text)
-	}
-	say(b, user, btnDone)
 	if !strings.Contains(fs.last().text, "согласие") || !hasButton(fs.last().kb, btnAgree) {
 		t.Fatalf("expected consent step, got %q", fs.last().text)
 	}
@@ -117,7 +111,7 @@ func TestSellFlowCreatesLeadWithEstimate(t *testing.T) {
 		t.Fatalf("leads = %d", len(leads))
 	}
 	l := leads[0]
-	if l.Phone != "+79001234567" || l.Name != "Иван Петров" || len(l.Photos) != 2 || l.ConsentAt.IsZero() {
+	if l.Phone != "+79001234567" || l.Name != "Иван Петров" || len(l.Photos) != 0 || l.ConsentAt.IsZero() {
 		t.Fatalf("bad lead: %+v", l)
 	}
 
@@ -126,10 +120,13 @@ func TestSellFlowCreatesLeadWithEstimate(t *testing.T) {
 		t.Fatalf("admin got %d messages", len(adminMsgs))
 	}
 	am := adminMsgs[0].text
-	for _, want := range []string{"ПРОДАВЕЦ", "vk.com/id100", "+79001234567", "Площадь, м²: 50", "Двойная сделка", "Фото: 2", "4 500 000 ₽ – 5 500 000 ₽"} {
+	for _, want := range []string{"ПРОДАВЕЦ", "vk.com/id100", "+79001234567", "Площадь, м²: 50", "Двойная сделка", "4 500 000 ₽ – 5 500 000 ₽"} {
 		if !strings.Contains(am, want) {
 			t.Errorf("admin message missing %q:\n%s", want, am)
 		}
+	}
+	if strings.Contains(am, "Фото") {
+		t.Error("photos step must be gone")
 	}
 	if strings.Contains(am, "Адрес") {
 		t.Error("skipped address must not appear")
@@ -256,4 +253,18 @@ func TestDistrictPriceWins(t *testing.T) {
 		t.Fatalf("estimate = %q %v", est, ok)
 	}
 	_ = ctx
+}
+
+func TestStatsCommand(t *testing.T) {
+	b, fs, st := newBot(t)
+	ctx := context.Background()
+	_, _ = st.SaveLead(ctx, &storage.Lead{Kind: flowSell, Answers: []storage.Answer{{Key: "after", Value: "Новостройка"}}})
+	_, _ = st.SaveLead(ctx, &storage.Lead{Kind: flowBuy})
+	say(b, admin, "/статистика")
+	out := fs.last().text
+	for _, want := range []string{"Сегодня — всего 2", "ПРОДАВЕЦ: 1", "ПОКУПАТЕЛЬ: 1", "двойные сделки: 1", "30 дней — всего 2"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stats missing %q:\n%s", want, out)
+		}
+	}
 }

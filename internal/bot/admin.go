@@ -10,6 +10,7 @@ import (
 )
 
 const adminHelp = `Команды:
+/статистика — заявки за сегодня, 7 и 30 дней по видам
 /заявки [дней] — все заявки (по умолчанию за сутки)
 /продавцы [дней] — продавцы (по умолчанию 30 дней)
 /покупатели [дней] — покупатели (по умолчанию 30 дней)
@@ -29,6 +30,8 @@ func (b *Bot) admin(ctx context.Context, peer int64, text string) {
 	switch cmd {
 	case "/помощь", "/help", "/start":
 		out = adminHelp
+	case "/статистика", "/стат":
+		out = b.stats(ctx)
 	case "/заявки":
 		out = b.listLeads(ctx, "", days(args, 1))
 	case "/продавцы":
@@ -155,4 +158,46 @@ func (b *Bot) deleteValue(ctx context.Context, key string, m *map[string]float64
 		return "Не сохранилось: " + err.Error()
 	}
 	return "Удалено: " + found
+}
+
+func (b *Bot) stats(ctx context.Context) string {
+	now := time.Now().In(b.opt.Location)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, b.opt.Location)
+	periods := []struct {
+		name  string
+		since time.Time
+	}{
+		{"Сегодня", today},
+		{"7 дней", now.Add(-7 * 24 * time.Hour)},
+		{"30 дней", now.Add(-30 * 24 * time.Hour)},
+	}
+	kinds := []string{flowBuy, flowSell, flowMortgage, flowContact}
+	var sb strings.Builder
+	sb.WriteString("📊 Статистика заявок\n")
+	for _, p := range periods {
+		leads, err := b.store.ListLeads(ctx, "", p.since)
+		if err != nil {
+			return "Ошибка чтения заявок: " + err.Error()
+		}
+		count := map[string]int{}
+		double := 0
+		for _, l := range leads {
+			count[l.Kind]++
+			for _, a := range l.Answers {
+				if a.Key == "after" && a.Value == "Новостройка" {
+					double++
+				}
+			}
+		}
+		fmt.Fprintf(&sb, "\n%s — всего %d\n", p.name, len(leads))
+		for _, k := range kinds {
+			if count[k] > 0 {
+				fmt.Fprintf(&sb, "• %s: %d\n", leadKindTitle[k], count[k])
+			}
+		}
+		if double > 0 {
+			fmt.Fprintf(&sb, "• ⭐ двойные сделки: %d\n", double)
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }

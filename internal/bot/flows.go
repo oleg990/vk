@@ -147,8 +147,6 @@ func buildFlows() map[string]*flow {
 			kind: kindChoice, options: []string{"Покупка в этом городе", "Новостройка", "Переезд в другой город", "Просто продаю"}},
 		{key: "timing", label: "Сроки", question: "Когда нужно продать?",
 			kind: kindChoice, options: []string{"Срочно, до месяца", "В течение 1–3 месяцев", "Не спешу"}},
-		{key: "photos", label: "Фото", question: "Пришлите фото объекта (до 10) — так оценка будет точнее. Когда закончите, нажмите «Готово», или «Пропустить».",
-			kind: kindPhotos, optional: true},
 	}, contactSteps()...)}
 
 	hasRates := func(_ map[string]string, b *Bot) bool { return len(b.rateList()) > 0 }
