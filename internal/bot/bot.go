@@ -33,6 +33,7 @@ type Incoming struct {
 type Options struct {
 	AdminID    int64  // VK id Олега: ему приходят заявки, ему доступны /команды
 	PrivacyURL string // ссылка на политику обработки персональных данных
+	CallPhone  string // номер Олега для кнопки «Позвонить», формат +7XXXXXXXXXX
 	Location   *time.Location
 	Log        *slog.Logger
 }
@@ -212,8 +213,8 @@ func menuKeyboard() *vk.Keyboard {
 	return &vk.Keyboard{Buttons: [][]vk.Button{
 		{vk.TextButton(btnBuy, payload(flowBuy), vk.ColorPrimary)},
 		{vk.TextButton(btnSell, payload(flowSell), vk.ColorPositive)},
-		{vk.TextButton(btnMortgage, payload(flowMortgage), vk.ColorSecondary)},
-		{vk.TextButton(btnContact, payload(flowContact), vk.ColorSecondary)},
+		{vk.TextButton(btnMortgage, payload(flowMortgage), vk.ColorPrimary)},
+		{vk.TextButton(btnContact, payload(flowContact), vk.ColorPositive)},
 	}}
 }
 

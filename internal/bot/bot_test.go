@@ -47,7 +47,7 @@ func newBot(t *testing.T) (*Bot, *fakeSender, *storage.FileStore) {
 	t.Helper()
 	fs := &fakeSender{}
 	st := storage.NewMemory()
-	b, err := New(context.Background(), fs, st, Options{AdminID: admin, PrivacyURL: "https://example.ru/privacy"})
+	b, err := New(context.Background(), fs, st, Options{AdminID: admin, PrivacyURL: "https://example.ru/privacy", CallPhone: "+79205952888"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,5 +266,87 @@ func TestStatsCommand(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("stats missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestMenuButtonsAllColored(t *testing.T) {
+	for _, row := range menuKeyboard().Buttons {
+		for _, btn := range row {
+			if btn.Color == vk.ColorSecondary || btn.Color == "" {
+				t.Errorf("menu button %q is not colored", btn.Action.Label)
+			}
+		}
+	}
+}
+
+func TestStaryOskolSkipsMarket(t *testing.T) {
+	b, fs, _ := newBot(t)
+	say(b, user, btnBuy)
+	say(b, user, "Старый Оскол")
+	if !strings.Contains(fs.last().text, "Сколько комнат") {
+		t.Fatalf("expected rooms step, got %q", fs.last().text)
+	}
+	say(b, user, btnBack)
+	if !strings.Contains(fs.last().text, "В каком городе") {
+		t.Fatalf("back should skip market, got %q", fs.last().text)
+	}
+}
+
+func TestMortgageRejectsNegative(t *testing.T) {
+	b, fs, _ := newBot(t)
+	say(b, user, btnMortgage)
+	say(b, user, "-5000000")
+	if !strings.Contains(fs.last().text, "Не понял сумму") {
+		t.Fatalf("negative price accepted: %q", fs.last().text)
+	}
+	say(b, user, "5 млн")
+	say(b, user, "-20%")
+	if !strings.Contains(fs.last().text, "Взнос должен быть") {
+		t.Fatalf("negative down accepted: %q", fs.last().text)
+	}
+	say(b, user, "20%")
+	say(b, user, "-10")
+	if !strings.Contains(fs.last().text, "Выберите срок") {
+		t.Fatalf("negative years accepted: %q", fs.last().text)
+	}
+	say(b, user, "20 лет")
+	for _, r := range []string{"6%", "12%", "18%", "20%"} {
+		if !hasButton(fs.last().kb, r) {
+			t.Fatalf("rate button %s missing", r)
+		}
+	}
+	say(b, user, "-12")
+	if !strings.Contains(fs.last().text, "ставку числом") {
+		t.Fatalf("negative rate accepted: %q", fs.last().text)
+	}
+	say(b, user, "18%")
+	if !strings.Contains(fs.last().text, "под 18%") {
+		t.Fatalf("rate button not applied: %q", fs.last().text)
+	}
+}
+
+func TestContactCallButton(t *testing.T) {
+	b, fs, _ := newBot(t)
+	say(b, user, btnContact)
+	say(b, user, btnSkip)
+	say(b, user, btnAgree)
+	if !hasButton(fs.last().kb, btnCall) || !strings.Contains(fs.last().text, "8 999 456 78 90") {
+		t.Fatalf("phone step: %q %+v", fs.last().text, fs.last().kb)
+	}
+	say(b, user, btnCall)
+	um := fs.to(user)
+	if last := um[len(um)-1]; !strings.Contains(last.text, "+7 920 595-28-88") || !hasButton(last.kb, btnCall) {
+		t.Fatalf("call reply: %q", last.text)
+	}
+	if am := fs.to(admin); len(am) != 1 || !strings.Contains(am[0].text, "Позвонить") {
+		t.Fatalf("admin not notified about call: %+v", am)
+	}
+	// в сценарии продажи кнопки звонка нет
+	b2, fs2, _ := newBot(t)
+	for _, m := range []string{btnSell, "Участок", "Воронеж", "Шилово", btnSkip, "8", btnSkip, "Просто продаю", "Не спешу", btnAgree} {
+		say(b2, user, m)
+	}
+	if hasButton(fs2.last().kb, btnCall) {
+		t.Fatal("call button must be only in contact flow")
 	}
 }

@@ -48,7 +48,7 @@ func run(log *slog.Logger) error {
 	}
 	client := vk.New(cfg.VKToken, cfg.VKGroupID, cfg.VKAPIURL, log)
 	b, err := bot.New(ctx, client, store, bot.Options{
-		AdminID: cfg.AdminVKID, PrivacyURL: cfg.PrivacyURL, Location: loc, Log: log,
+		AdminID: cfg.AdminVKID, PrivacyURL: cfg.PrivacyURL, CallPhone: cfg.CallPhone, Location: loc, Log: log,
 	})
 	if err != nil {
 		return err

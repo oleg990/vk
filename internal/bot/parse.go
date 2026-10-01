@@ -11,6 +11,7 @@ var (
 	numRe        = regexp.MustCompile(`\d+(?:[.,]\d+)?`)
 	digitSpaceRe = regexp.MustCompile(`(\d)[\s\x{00a0}]+(\d)`)
 	nonDigitRe   = regexp.MustCompile(`\D`)
+	negativeRe   = regexp.MustCompile(`(^|[^\d\s])\s*[-−]\s*\d`)
 )
 
 // joinDigitGroups склеивает «5 500 000» в «5500000».
@@ -49,9 +50,24 @@ func unitMultiplier(rest string) float64 {
 	return 0
 }
 
+// isNegative — во вводе есть отрицательное число («-5 млн», «до -3»). Диапазон «5-6» не считается.
+func isNegative(s string) bool { return negativeRe.MatchString(strings.TrimSpace(s)) }
+
+// FormatPhone: +79205952888 → +7 920 595-28-88.
+func FormatPhone(p string) string {
+	d := nonDigitRe.ReplaceAllString(p, "")
+	if len(d) != 11 {
+		return p
+	}
+	return "+7 " + d[1:4] + " " + d[4:7] + "-" + d[7:9] + "-" + d[9:11]
+}
+
 // ParseMoney понимает «5 500 000», «5,5 млн», «5500 тыс», «5.5».
 // Без единиц: меньше 1000 — миллионы, меньше 100 000 — тысячи, иначе рубли.
 func ParseMoney(s string) (float64, bool) {
+	if isNegative(s) {
+		return 0, false
+	}
 	t := joinDigitGroups(strings.ToLower(strings.TrimSpace(s)))
 	v, rest, ok := firstNumber(t)
 	if !ok || v <= 0 {
@@ -69,6 +85,9 @@ func ParseMoney(s string) (float64, bool) {
 
 // ParseDown — первоначальный взнос: «20%», «20» (проценты), «1,5 млн», «0».
 func ParseDown(s string, price float64) (float64, bool) {
+	if isNegative(s) {
+		return 0, false
+	}
 	t := joinDigitGroups(strings.ToLower(strings.TrimSpace(s)))
 	switch t {
 	case "0", "нет", "без взноса", "без первоначального взноса":
@@ -93,12 +112,18 @@ func ParseDown(s string, price float64) (float64, bool) {
 
 // ParseNumber — первое положительное число (площадь, ставка).
 func ParseNumber(s string) (float64, bool) {
+	if isNegative(s) {
+		return 0, false
+	}
 	v, _, ok := firstNumber(joinDigitGroups(s))
 	return v, ok && v > 0
 }
 
 // ParseYears — срок 1–35 лет из «20», «20 лет».
 func ParseYears(s string) (int, bool) {
+	if isNegative(s) {
+		return 0, false
+	}
 	v, _, ok := firstNumber(s)
 	if !ok || v != math.Trunc(v) || v < 1 || v > 35 {
 		return 0, false

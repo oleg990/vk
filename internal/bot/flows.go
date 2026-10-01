@@ -20,14 +20,15 @@ const (
 )
 
 type step struct {
-	key      string
-	label    string // подпись в заявке
-	question string
-	kind     stepKind
-	options  []string
-	freeText bool
-	optional bool                                   // кнопка «Пропустить»
-	when     func(a map[string]string, b *Bot) bool // nil — шаг всегда
+	key        string
+	label      string // подпись в заявке
+	question   string
+	kind       stepKind
+	options    []string
+	freeText   bool
+	optional   bool                                   // кнопка «Пропустить»
+	callButton bool                                   // на шаге телефона — кнопка «Позвонить Олегу»
+	when       func(a map[string]string, b *Bot) bool // nil — шаг всегда
 }
 
 type flow struct {
@@ -64,6 +65,7 @@ const (
 	btnRefuse   = "Отказаться"
 	btnOwnRate  = "Своя ставка"
 	btnWantPick = "🏠 Хочу подбор под этот платёж"
+	btnCall     = "📞 Позвонить Олегу"
 )
 
 var leadKindTitle = map[string]string{
@@ -93,12 +95,15 @@ func not(f func(map[string]string, *Bot) bool) func(map[string]string, *Bot) boo
 	return func(a map[string]string, b *Bot) bool { return !f(a, b) }
 }
 
-func contactSteps() []step {
+func contactSteps() []step { return contactStepsCall(false) }
+
+// contactStepsCall: call=true добавляет на шаге телефона кнопку «Позвонить».
+func contactStepsCall(call bool) []step {
 	return []step{
 		{key: "consent", kind: kindConsent,
 			question: "Чтобы Олег мог с вами связаться, нужно ваше согласие на обработку персональных данных (имя, телефон и ответы выше)."},
 		{key: "phone", kind: kindPhone,
-			question: "Напишите номер телефона для связи — например, +7 900 123-45-67."},
+			question: "Напишите номер телефона для связи — например, 8 999 456 78 90.", callButton: call},
 	}
 }
 
@@ -107,7 +112,8 @@ func buildFlows() map[string]*flow {
 		{key: "city", label: "Город", question: "В каком городе ищете квартиру? Выберите или напишите свой.",
 			kind: kindChoice, options: cityOptions, freeText: true},
 		{key: "market", label: "Рынок", question: "Что рассматриваете?",
-			kind: kindChoice, options: []string{"Новостройка", "Вторичка", "Не важно"}},
+			kind: kindChoice, options: []string{"Новостройка", "Вторичка", "Не важно"},
+			when: not(isType("city", "Старый Оскол"))},
 		{key: "rooms", label: "Комнат", question: "Сколько комнат?",
 			kind: kindChoice, options: roomOptions},
 		{key: "budget", label: "Бюджет", question: "Какой бюджет? Выберите или напишите сумму.",
@@ -156,15 +162,16 @@ func buildFlows() map[string]*flow {
 		{key: "years", label: "Срок", question: "На какой срок?", kind: kindYears,
 			options: []string{"10 лет", "15 лет", "20 лет", "25 лет", "30 лет"}},
 		{key: "program", label: "Программа", question: "Выберите программу:", kind: kindRateChoice, when: hasRates},
-		{key: "rate", label: "Ставка, %", question: "Какая ставка, % годовых? Например: 12,5.", kind: kindRate,
-			when: func(a map[string]string, b *Bot) bool { return !hasRates(a, b) || a["program"] == btnOwnRate }},
+		{key: "rate", label: "Ставка, %", question: "Какая ставка, % годовых? Выберите или напишите свою, например 12,5.", kind: kindRate,
+			options: []string{"6%", "12%", "18%", "20%"},
+			when:    func(a map[string]string, b *Bot) bool { return !hasRates(a, b) || a["program"] == btnOwnRate }},
 	}}
 
 	mortgageLead := &flow{name: flowMortgageLead, leadKind: flowMortgage, answerFlow: flowMortgage, steps: contactSteps()}
 
 	contact := &flow{name: flowContact, leadKind: flowContact, steps: append([]step{
 		{key: "question", label: "Вопрос", question: "Коротко опишите вопрос — или нажмите «Пропустить».", kind: kindText, optional: true},
-	}, contactSteps()...)}
+	}, contactStepsCall(true)...)}
 
 	return map[string]*flow{
 		flowBuy: buy, flowSell: sell, flowMortgage: mortgage,

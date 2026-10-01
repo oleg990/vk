@@ -82,3 +82,17 @@ func TestFormat(t *testing.T) {
 		t.Errorf("yearsWord(12) = %q", got)
 	}
 }
+
+func TestNegativeAndPhoneFormat(t *testing.T) {
+	for _, in := range []string{"-5000000", "−5 млн", "до -3 млн"} {
+		if _, ok := ParseMoney(in); ok {
+			t.Errorf("ParseMoney(%q) must fail", in)
+		}
+	}
+	if _, ok := ParseNumber("-44"); ok {
+		t.Error("negative area accepted")
+	}
+	if got := FormatPhone("+79205952888"); got != "+7 920 595-28-88" {
+		t.Errorf("FormatPhone = %q", got)
+	}
+}

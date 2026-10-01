@@ -15,6 +15,7 @@ type Config struct {
 	AdminVKID  int64  // VK id Олега — ему приходят заявки
 	DataFile   string // файл хранилища
 	PrivacyURL string // ссылка на политику обработки ПДн
+	CallPhone  string // номер для кнопки «Позвонить Олегу»
 	VKAPIURL   string // по умолчанию https://api.vk.com/method/
 	Timezone   string
 }
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 		VKToken:    strings.TrimSpace(os.Getenv("VK_TOKEN")),
 		DataFile:   envOr("DATA_FILE", "data/bot.json"),
 		PrivacyURL: os.Getenv("PRIVACY_URL"),
+		CallPhone:  envOr("CALL_PHONE", "+79205952888"),
 		VKAPIURL:   os.Getenv("VK_API_URL"),
 		Timezone:   envOr("TZ_NAME", "Europe/Moscow"),
 	}

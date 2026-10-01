@@ -93,6 +93,10 @@ func (b *Bot) stepKeyboard(f *flow, s *storage.Session, st step) *vk.Keyboard {
 		})
 	case kindPhotos:
 		rows = append(rows, []vk.Button{vk.TextButton(btnDone, "", vk.ColorPositive)})
+	case kindPhone:
+		if st.callButton && b.opt.CallPhone != "" {
+			rows = append(rows, []vk.Button{vk.TextButton(btnCall, "", vk.ColorPositive)})
+		}
 	default:
 		var row []vk.Button
 		for _, o := range b.stepOptions(st) {
@@ -242,7 +246,7 @@ func (b *Bot) accept(st step, s *storage.Session, in Incoming, text string) acce
 	case kindPhone:
 		p, ok := ParsePhone(text)
 		if !ok {
-			return bad("Не похоже на номер. Напишите, например: +7 900 123-45-67")
+			return bad("Не похоже на номер. Напишите, например: 8 999 456 78 90")
 		}
 		return acceptResult{status: accepted, value: p}
 	}
@@ -285,6 +289,15 @@ func (b *Bot) advance(ctx context.Context, s *storage.Session, in Incoming, text
 	}
 
 	st := f.steps[s.Step]
+	if st.callButton && text == btnCall && b.opt.CallPhone != "" {
+		b.reply(ctx, s.UserID, "Звоните, буду рад помочь: "+FormatPhone(b.opt.CallPhone)+"\n\nИли оставьте свой номер — перезвоню сам.", b.stepKeyboard(f, s, st))
+		name, err := b.send.UserName(ctx, s.UserID)
+		if err != nil || name == "" {
+			name = fmt.Sprintf("id%d", s.UserID)
+		}
+		b.notifyAdmin(ctx, fmt.Sprintf("📞 %s — vk.com/id%d нажал «Позвонить», ждите звонка.", name, s.UserID))
+		return
+	}
 	res := b.accept(st, s, in, text)
 	switch res.status {
 	case invalid:
