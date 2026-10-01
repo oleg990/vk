@@ -125,7 +125,10 @@ func TestPreviewApproveSchedules(t *testing.T) {
 	if msg.uploads != 1 {
 		t.Fatal("preview sent twice")
 	}
-	if !m.HandleAdmin(ctx, 1, "✅ Опубликовать", btn(pv.kb, "✅ Опубликовать")) {
+	if btn(pv.kb, "⚡ Сейчас") == nil {
+		t.Fatal("future post must have ⚡ Сейчас")
+	}
+	if !m.HandleAdmin(ctx, 1, "✅ По расписанию", btn(pv.kb, "✅ По расписанию")) {
 		t.Fatal("button not handled")
 	}
 	if wall.posts != 1 || wall.publishDate != now.Add(72*time.Hour).Unix() || wall.message != "Текст поста" {
@@ -135,7 +138,7 @@ func TestPreviewApproveSchedules(t *testing.T) {
 		t.Fatalf("reply = %q", msg.last().text)
 	}
 	// повторное нажатие не публикует дважды
-	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ Опубликовать"))
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ По расписанию"))
 	if wall.posts != 1 || !strings.Contains(msg.last().text, "уже") {
 		t.Fatalf("double publish: posts=%d reply=%q", wall.posts, msg.last().text)
 	}
@@ -221,5 +224,41 @@ func TestComposeSizes(t *testing.T) {
 	}
 	if _, err := Compose(nil, pngOf(100, 100, color.White)); err == nil {
 		t.Fatal("wrong overlay size must fail")
+	}
+}
+
+func TestNowButtonPublishesImmediately(t *testing.T) {
+	ctx := context.Background()
+	m, msg, wall, _ := newManager(t, Item{ID: "p1", PublishAt: now.Add(72 * time.Hour), Text: "x"})
+	m.Tick(ctx)
+	m.HandleAdmin(ctx, 1, "", btn(msg.last().kb, "⚡ Сейчас"))
+	if wall.posts != 1 || wall.publishDate != 0 || !strings.Contains(msg.last().text, "Опубликовано") {
+		t.Fatalf("pd=%d reply=%q", wall.publishDate, msg.last().text)
+	}
+}
+
+func TestUrgentCommand(t *testing.T) {
+	ctx := context.Background()
+	m, msg, wall, gen := newManager(t)
+	if !m.HandleAdmin(ctx, 1, "/срочно", nil) || !strings.Contains(msg.last().text, "Напишите текст") {
+		t.Fatalf("empty urgent: %q", msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "/срочно Снизили цену на 2-комнатную\nПишите!", nil)
+	pv := msg.last()
+	if pv.att == "" || !strings.Contains(pv.text, "Снизили цену на 2-комнатную\nПишите!") || gen.calls != 0 {
+		t.Fatalf("urgent preview = %+v gen=%d", pv, gen.calls)
+	}
+	if btn(pv.kb, "⚡ Сейчас") != nil || btn(pv.kb, "✅ Опубликовать") == nil {
+		t.Fatal("urgent post must have plain publish button")
+	}
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ Опубликовать"))
+	if wall.posts != 1 || wall.publishDate != 0 {
+		t.Fatalf("urgent publish: posts=%d pd=%d", wall.posts, wall.publishDate)
+	}
+	// очередь из репозитория не затирает срочные посты
+	m.Tick(ctx)
+	m.HandleAdmin(ctx, 1, "/очередь", nil)
+	if !strings.Contains(msg.last().text, "srochno-") {
+		t.Fatalf("list = %q", msg.last().text)
 	}
 }

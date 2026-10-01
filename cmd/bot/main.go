@@ -65,6 +65,7 @@ func run(log *slog.Logger) error {
 		Content: autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		Gen:     autopost.HF{URL: cfg.HFImageURL, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
 		Store:   store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
+		HTTP: &http.Client{Timeout: 60 * time.Second},
 	}
 	if cfg.VKUserToken != "" {
 		ap.Wall = client.WithToken(cfg.VKUserToken)
@@ -86,7 +87,7 @@ func run(log *slog.Logger) error {
 		if msg.PeerID != msg.FromID || msg.FromID <= 0 { // только личные сообщения от людей
 			return
 		}
-		if ap.HandleAdmin(ctx, msg.FromID, msg.Text, msg.PayloadMap()) {
+		if ap.HandleAdmin(ctx, msg.FromID, msg.Text, msg.PayloadMap(), msg.PhotoURLs()...) {
 			return
 		}
 		b.Handle(ctx, bot.Incoming{

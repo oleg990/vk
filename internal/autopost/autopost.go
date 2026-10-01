@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,6 +44,7 @@ type State struct {
 	Text      string    `json:"text"`
 	Prompt    string    `json:"prompt"`
 	Overlay   string    `json:"overlay"`
+	PhotoURL  string    `json:"photo_url,omitempty"` // фото, присланное с /срочно
 	Image     string    `json:"image,omitempty"`
 	Attempts  int       `json:"attempts,omitempty"`
 	Error     string    `json:"error,omitempty"`
@@ -69,6 +72,9 @@ type ContentSource interface {
 	Overlay(ctx context.Context, path string) ([]byte, error)
 }
 
+// UrgentOverlay — плашка для постов /срочно (путь в content/).
+const UrgentOverlay = "urgent_overlay.png"
+
 type Manager struct {
 	GroupID int64
 	AdminID int64
@@ -78,6 +84,7 @@ type Manager struct {
 	Gen     Generator
 	Store   storage.Store
 	DataDir string
+	HTTP    *http.Client // скачивание фото из сообщений
 	Loc     *time.Location
 	Log     *slog.Logger
 	Now     func() time.Time
@@ -195,7 +202,13 @@ func (m *Manager) imagePath(id string) string { return filepath.Join(m.DataDir, 
 
 func (m *Manager) prepare(ctx context.Context, st *State) error {
 	var photo []byte
-	if st.Prompt != "" {
+	if st.PhotoURL != "" {
+		p, err := m.download(ctx, st.PhotoURL)
+		if err != nil {
+			return fmt.Errorf("фото из сообщения: %w", err)
+		}
+		photo = p
+	} else if st.Prompt != "" {
 		p, err := m.Gen.Generate(ctx, st.Prompt)
 		if err != nil {
 			return err
@@ -223,7 +236,38 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 		return fmt.Errorf("превью: %w", err)
 	}
 	text := fmt.Sprintf("📝 Пост на одобрение · %s\n🕒 %s\n\n%s", st.ID, m.fmtTime(st.PublishAt), st.Text)
-	return m.Msg.SendAttachment(ctx, m.AdminID, text, att, m.buttons(st.ID, false))
+	return m.Msg.SendAttachment(ctx, m.AdminID, text, att, m.previewButtons(st))
+}
+
+func (m *Manager) download(ctx context.Context, u string) ([]byte, error) {
+	hc := m.HTTP
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s", resp.Status)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 20<<20))
+}
+
+// previewButtons: для поста с будущей датой добавляет «⚡ Сейчас».
+func (m *Manager) previewButtons(st *State) *vk.Keyboard {
+	kb := m.buttons(st.ID, false)
+	if st.PublishAt.After(m.now().Add(10 * time.Minute)) {
+		now := vk.TextButton("⚡ Сейчас", payload("ap_now", st.ID), vk.ColorPositive)
+		kb.Buttons[0] = append(kb.Buttons[0], now)
+		kb.Buttons[0][0] = vk.TextButton("✅ По расписанию", payload("ap_ok", st.ID), vk.ColorPositive)
+	}
+	return kb
 }
 
 func (m *Manager) fmtTime(t time.Time) string {
@@ -273,14 +317,19 @@ func sorted(states map[string]*State) []*State {
 }
 
 // HandleAdmin обрабатывает кнопки превью и команды /очередь, /обновить. true — сообщение обработано.
-func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl map[string]string) bool {
+func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl map[string]string, photos ...string) bool {
 	if userID != m.AdminID {
 		return false
 	}
 	cmd, id := pl["cmd"], pl["id"]
 	switch {
 	case cmd == "ap_ok":
-		m.notify(ctx, m.approve(ctx, id), "", nil)
+		m.notify(ctx, m.approve(ctx, id, false), "", nil)
+	case cmd == "ap_now":
+		m.notify(ctx, m.approve(ctx, id, true), "", nil)
+	case isUrgent(text):
+		m.notify(ctx, m.urgent(ctx, text, photos), "", nil)
+		m.Process(ctx)
 	case cmd == "ap_no":
 		m.notify(ctx, m.reject(ctx, id), "", nil)
 	case cmd == "ap_redo":
@@ -316,7 +365,47 @@ func (m *Manager) withState(ctx context.Context, id string, f func(st *State) st
 	return msg
 }
 
-func (m *Manager) approve(ctx context.Context, id string) string {
+func isUrgent(text string) bool {
+	f := strings.Fields(strings.ToLower(text))
+	return len(f) > 0 && f[0] == "/срочно"
+}
+
+// urgent создаёт внеочередной пост из текста после /срочно (и первого фото, если приложено).
+func (m *Manager) urgent(ctx context.Context, text string, photos []string) string {
+	body := strings.TrimSpace(text)
+	body = strings.TrimSpace(body[len(strings.Fields(body)[0]):])
+	if body == "" {
+		return "Напишите текст поста после команды: /срочно Текст поста… (можно приложить фото)"
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	states, err := m.load(ctx)
+	if err != nil {
+		return "Ошибка: " + err.Error()
+	}
+	id := "srochno-" + m.now().In(m.loc()).Format("2006-01-02-1504")
+	for i := 2; states[id] != nil; i++ {
+		id = fmt.Sprintf("srochno-%s-%d", m.now().In(m.loc()).Format("2006-01-02-1504"), i)
+	}
+	st := &State{ID: id, Status: StatusNew, Text: body, Overlay: UrgentOverlay}
+	if len(photos) > 0 {
+		st.PhotoURL = photos[0]
+	}
+	states[id] = st
+	if err := m.save(ctx, states); err != nil {
+		return "Не сохранилось: " + err.Error()
+	}
+	return "⚡ Готовлю внеочередной пост — превью придёт через несколько секунд."
+}
+
+func (m *Manager) loc() *time.Location {
+	if m.Loc != nil {
+		return m.Loc
+	}
+	return time.Local
+}
+
+func (m *Manager) approve(ctx context.Context, id string, immediately bool) string {
 	return m.withState(ctx, id, func(st *State) string {
 		switch st.Status {
 		case StatusScheduled, StatusPublished:
@@ -337,7 +426,7 @@ func (m *Manager) approve(ctx context.Context, id string) string {
 			return "⚠️ VK не принял фото: " + err.Error()
 		}
 		var publishDate int64
-		if st.PublishAt.After(m.now().Add(10 * time.Minute)) {
+		if !immediately && st.PublishAt.After(m.now().Add(10*time.Minute)) {
 			publishDate = st.PublishAt.Unix()
 		}
 		postID, err := m.Wall.WallPost(ctx, m.GroupID, st.Text, att, publishDate)
