@@ -26,14 +26,27 @@ func samplePosts() []vk.WallItem {
 	}
 }
 
+// bigSample — три «недели» одного и того же набора постов: достаточно для выводов о темах и времени.
+func bigSample() []vk.WallItem {
+	var out []vk.WallItem
+	for k := int64(0); k < 3; k++ {
+		for _, p := range samplePosts() {
+			p.ID += 10 * k
+			p.Date -= 7 * 24 * 3600 * k
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func TestAnalyze(t *testing.T) {
 	now := time.Date(2026, 10, 8, 12, 0, 0, 0, msk)
-	a := Analyze(samplePosts(), now, msk, 30)
-	if len(a.Posts) != 6 {
-		t.Fatalf("posts with views = %d, want 6", len(a.Posts))
+	a := Analyze(bigSample(), now, msk, 30)
+	if len(a.Posts) != 18 {
+		t.Fatalf("posts with views = %d, want 18", len(a.Posts))
 	}
-	if a.Top[0].ID != 3 {
-		t.Fatalf("top post = %d, want 3", a.Top[0].ID)
+	if a.Top[0].Views != 400 {
+		t.Fatalf("top post views = %d, want 400", a.Top[0].Views)
 	}
 	if got := TopicOf(samplePosts()[2].Text); got != "Опросы" {
 		t.Fatalf("topic = %q", got)
@@ -47,15 +60,29 @@ func TestAnalyze(t *testing.T) {
 			dev = tp
 		}
 	}
-	if dev.Posts != 3 || dev.AvgViews > 110 {
+	if dev.Posts != 9 || dev.AvgViews > 110 {
 		t.Fatalf("developer topic = %+v", dev)
 	}
 	notes := strings.Join(a.Notes, "\n")
 	if !strings.Contains(notes, "слабее") || !strings.Contains(notes, "Новостройки и застройщики") {
 		t.Fatalf("weak-topic note missing:\n%s", notes)
 	}
-	if a.BestSlot == "" {
-		t.Fatal("best slot expected with 6 posts")
+	if a.BestSlot == "" || a.BestDay == "" {
+		t.Fatal("best day and slot expected with 18 posts")
+	}
+}
+
+func TestSixPostsGiveNoTrends(t *testing.T) {
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, msk)
+	a := Analyze(samplePosts(), now, msk, 30)
+	if len(a.Posts) != 6 || a.BestDay != "" || a.BestSlot != "" {
+		t.Fatalf("no timing advice with 6 posts: %+v", a)
+	}
+	if len(a.Notes) != 1 || !strings.Contains(a.Notes[0], "мало") {
+		t.Fatalf("only the 'too little data' note expected, got %q", a.Notes)
+	}
+	if firstLine("  ", 40) != "(без текста)" {
+		t.Fatal("empty post text must be labelled")
 	}
 }
 

@@ -25,8 +25,12 @@ type Messenger interface {
 	Send(ctx context.Context, peerID int64, text string, kb *vk.Keyboard) error
 }
 
-// MinPosts — меньше постов за период: выводы предварительные.
-const MinPosts = 5
+// MinPosts — меньше постов за период: выводы по темам и реакциям не делаем, только цифры.
+// MinPostsTiming — столько постов нужно, чтобы говорить о лучшем дне и времени.
+const (
+	MinPosts       = 10
+	MinPostsTiming = 15
+)
 
 // Marker отделяет сводку статистики от пожелания Олега в тексте запуска задачи Claude.
 const Marker = "[СТАТИСТИКА]"
@@ -174,7 +178,7 @@ func Analyze(all []vk.WallItem, now time.Time, loc *time.Location, days int) Ana
 		}
 		return a.Topics[i].Name < a.Topics[j].Name
 	})
-	if n >= MinPosts {
+	if n >= MinPostsTiming {
 		best := func(m map[string]*acc) (string, float64) {
 			name, top := "", -1.0
 			for k, x := range m {
@@ -198,7 +202,7 @@ func (a Analysis) recommend() []string {
 	var out []string
 	n := len(a.Posts)
 	if n < MinPosts {
-		out = append(out, fmt.Sprintf("Данных пока мало (%d из %d постов с просмотрами) — выводы предварительные, публикуйте регулярно, чтобы набрать статистику.", n, MinPosts))
+		return append(out, fmt.Sprintf("Данных пока мало: %d постов с просмотрами, для выводов по темам и времени нужно хотя бы %d. Публикуйте регулярно, а пока растите охват: приглашайте людей в группу.", n, MinPosts))
 	}
 	for _, t := range a.Topics {
 		if t.Posts >= 2 && t.AvgViews >= a.AvgViews*1.2 {
@@ -230,6 +234,9 @@ func (a Analysis) recommend() []string {
 
 func firstLine(text string, max int) string {
 	text = strings.TrimSpace(text)
+	if text == "" {
+		return "(без текста)"
+	}
 	if i := strings.IndexByte(text, '\n'); i >= 0 {
 		text = text[:i]
 	}
