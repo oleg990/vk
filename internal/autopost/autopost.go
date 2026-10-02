@@ -95,12 +95,14 @@ type Manager struct {
 	Content ContentSource
 	Gen     Generator
 	Photos  PhotoSearch // nil — без фотостока
-	Store   storage.Store
-	DataDir string
-	HTTP    *http.Client // скачивание фото из сообщений
-	Loc     *time.Location
-	Log     *slog.Logger
-	Now     func() time.Time
+	// UploadGap — пауза между загрузками фото в VK (VK режет частые загрузки)
+	UploadGap time.Duration
+	Store     storage.Store
+	DataDir   string
+	HTTP      *http.Client // скачивание фото из сообщений
+	Loc       *time.Location
+	Log       *slog.Logger
+	Now       func() time.Time
 
 	mu sync.Mutex
 }
@@ -194,10 +196,18 @@ func (m *Manager) Process(ctx context.Context) {
 		return
 	}
 	noTokenLogged := false
+	tried := 0
 	for _, st := range sorted(states) {
 		if st.Status != StatusNew {
 			continue
 		}
+		if tried > 0 && m.UploadGap > 0 {
+			if tried >= 3 {
+				break // остальные — в следующем цикле: не держим бота занятым и не злим VK частыми загрузками
+			}
+			time.Sleep(m.UploadGap)
+		}
+		tried++
 		if err := m.prepare(ctx, st); err != nil {
 			if errors.Is(err, ErrNoToken) {
 				// не ошибка поста: ждём, пока в .env появится HF_TOKEN
@@ -289,6 +299,9 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 			}
 		}
 		images = append(images, path)
+		if i > 0 && m.UploadGap > 0 {
+			time.Sleep(m.UploadGap)
+		}
 		att, wall, err := m.uploadPreview(ctx, img)
 		if err != nil {
 			return fmt.Errorf("превью: %w", err)

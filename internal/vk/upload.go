@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -15,6 +16,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 // WithToken — копия клиента с другим ключом (например, пользовательским для публикации на стене).
@@ -109,7 +111,7 @@ func (c *Client) uploadFile(ctx context.Context, uploadURL string, img []byte) (
 		if u, err := url.Parse(uploadURL); err == nil {
 			host = u.Host
 		}
-		return uploadResult{}, fmt.Errorf("upload: пустой ответ VK (%s, %d байт): %s", host, len(img), truncate(string(raw), 200))
+		return uploadResult{}, fmt.Errorf("upload: %w (%s, %d байт): %s", ErrEmptyUpload, host, len(img), truncate(string(raw), 200))
 	}
 	return res, nil
 }
@@ -166,6 +168,37 @@ func (c *Client) UploadMessagePhoto(ctx context.Context, peerID int64, png []byt
 
 // UploadWallPhoto загружает фото для поста на стене группы (нужен пользовательский ключ с правом photos).
 func (c *Client) UploadWallPhoto(ctx context.Context, groupID int64, png []byte) (string, error) {
+	// сервер загрузки VK иногда отвечает пустым photo (похоже на ограничение частоты) —
+	// пробуем ещё раз с паузой и новым адресом загрузки
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(time.Duration(attempt*attempt) * c.uploadRetryWait()):
+			}
+		}
+		att, err := c.uploadWallPhotoOnce(ctx, groupID, png)
+		if err == nil || !errors.Is(err, ErrEmptyUpload) {
+			return att, err
+		}
+		lastErr = err
+	}
+	return "", lastErr
+}
+
+// ErrEmptyUpload — сервер загрузки VK не принял файл (пустое поле photo).
+var ErrEmptyUpload = errors.New("пустой ответ VK")
+
+func (c *Client) uploadRetryWait() time.Duration {
+	if c.retryWait > 0 {
+		return c.retryWait
+	}
+	return 3 * time.Second
+}
+
+func (c *Client) uploadWallPhotoOnce(ctx context.Context, groupID int64, png []byte) (string, error) {
 	p := url.Values{}
 	p.Set("group_id", strconv.FormatInt(groupID, 10))
 	var srv struct {

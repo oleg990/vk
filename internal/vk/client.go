@@ -25,13 +25,14 @@ const (
 
 // Client работает от имени сообщества по ключу доступа сообщества.
 type Client struct {
-	token    string
-	groupID  int64
-	version  string
-	baseURL  string
-	api      *http.Client
-	longPoll *http.Client
-	log      *slog.Logger
+	token     string
+	groupID   int64
+	version   string
+	baseURL   string
+	api       *http.Client
+	retryWait time.Duration // пауза перед повтором загрузки фото (0 — 5 с)
+	longPoll  *http.Client
+	log       *slog.Logger
 }
 
 func New(token string, groupID int64, baseURL string, log *slog.Logger) *Client {

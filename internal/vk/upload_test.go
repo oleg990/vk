@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestUploadWallPhotoAndPost(t *testing.T) {
@@ -88,5 +89,33 @@ func TestAttachmentWithAccessKey(t *testing.T) {
 	att, err := attachmentOf([]savedPhoto{{ID: 5, OwnerID: -7, AccessKey: "abc"}})
 	if err != nil || att != "photo-7_5_abc" {
 		t.Fatalf("att=%q err=%v", att, err)
+	}
+}
+
+func TestWallUploadRetriesEmptyPhoto(t *testing.T) {
+	uploads := 0
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseMultipartForm(10 << 20)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/photos.getWallUploadServer"):
+			fmt.Fprintf(w, `{"response":{"upload_url":"%s/upload"}}`, srv.URL)
+		case r.URL.Path == "/upload":
+			uploads++
+			if uploads < 3 {
+				fmt.Fprint(w, `{"server":1,"photo":"","hash":"h"}`)
+				return
+			}
+			fmt.Fprint(w, `{"server":1,"photo":"[{}]","hash":"h"}`)
+		case strings.HasSuffix(r.URL.Path, "/photos.saveWallPhoto"):
+			fmt.Fprint(w, `{"response":[{"id":9,"owner_id":-7,"access_key":"k"}]}`)
+		}
+	}))
+	defer srv.Close()
+	c := New("g", 7, srv.URL+"/method/", nil).WithToken("u")
+	c.retryWait = time.Millisecond
+	att, err := c.UploadWallPhoto(context.Background(), 7, []byte("x"))
+	if err != nil || att != "photo-7_9_k" || uploads != 3 {
+		t.Fatalf("att=%q err=%v uploads=%d", att, err, uploads)
 	}
 }
