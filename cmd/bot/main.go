@@ -17,6 +17,7 @@ import (
 	"realty-bot/internal/autopost"
 	"realty-bot/internal/bot"
 	"realty-bot/internal/config"
+	"realty-bot/internal/routine"
 	"realty-bot/internal/storage"
 	"realty-bot/internal/vk"
 )
@@ -81,6 +82,10 @@ func run(log *slog.Logger) error {
 		ap.Wall = client.WithToken(cfg.VKUserToken)
 	} else {
 		log.Warn("VK_USER_TOKEN не задан: превью постов придут, но публикация будет недоступна")
+	}
+	if rc := (routine.Client{URL: "https://api.anthropic.com", ID: cfg.RoutineID, Token: cfg.RoutineToken,
+		HTTP: &http.Client{Timeout: 30 * time.Second}}); rc.Enabled() {
+		ap.Writer = rc
 	}
 	go ap.Run(ctx, 5*time.Minute)
 

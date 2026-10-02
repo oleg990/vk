@@ -74,6 +74,11 @@ type Generator interface {
 	Generate(ctx context.Context, prompt string) ([]byte, error)
 }
 
+// PostWriter запускает подготовку постов (задача Claude) с пожеланием Олега.
+type PostWriter interface {
+	Fire(ctx context.Context, wish string) (string, error)
+}
+
 // PhotoSearch ищет готовое фото по запросу (фотосток).
 type PhotoSearch interface {
 	Search(ctx context.Context, query string) ([]byte, error)
@@ -95,6 +100,9 @@ type Manager struct {
 	Content ContentSource
 	Gen     Generator
 	Photos  PhotoSearch // nil — без фотостока
+	// Writer запускает Claude, который делает посты по команде «сделай пост» (nil — команда недоступна)
+	Writer   PostWriter
+	lastFire time.Time
 	// UploadGap — пауза между загрузками фото в VK (VK режет частые загрузки)
 	UploadGap time.Duration
 	Store     storage.Store
@@ -499,9 +507,11 @@ func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl
 	case cmd == "ap_redo":
 		m.notify(ctx, m.redo(ctx, id), "", nil)
 		m.Process(ctx)
-	case strings.EqualFold(strings.TrimSpace(text), "/очередь"):
+	case isMakePost(text) || cmd == "adm_post":
+		m.notify(ctx, m.makePosts(ctx, text), "", nil)
+	case strings.EqualFold(strings.TrimSpace(text), "/очередь") || cmd == "adm_queue":
 		m.notify(ctx, m.list(ctx), "", nil)
-	case strings.EqualFold(strings.TrimSpace(text), "/обновить"):
+	case strings.EqualFold(strings.TrimSpace(text), "/обновить") || cmd == "adm_refresh":
 		m.notify(ctx, "🔄 Забираю очередь постов…", "", nil)
 		m.Tick(ctx)
 		m.notify(ctx, m.list(ctx), "", nil)
@@ -708,4 +718,51 @@ func (m *Manager) retryPause() time.Duration {
 		return m.UploadGap
 	}
 	return 0
+}
+
+var makePostPrefixes = []string{"сделай посты", "сделай пост", "сделать посты", "сделать пост", "/пост"}
+
+func isMakePost(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	for _, p := range makePostPrefixes {
+		if strings.HasPrefix(t, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// makePosts запускает Claude: он соберёт факты с сайтов застройщиков и добавит посты в очередь.
+func (m *Manager) makePosts(ctx context.Context, text string) string {
+	if m.Writer == nil {
+		return "⚠️ Команда пока не настроена: на сервере нет ROUTINE_ID и ROUTINE_TOKEN."
+	}
+	m.mu.Lock()
+	if since := m.now().Sub(m.lastFire); !m.lastFire.IsZero() && since < 15*time.Minute {
+		m.mu.Unlock()
+		return fmt.Sprintf("⏳ Посты уже готовятся (запуск в %s). Превью придут сюда — подождите немного.", m.lastFire.In(m.loc()).Format("15:04"))
+	}
+	m.lastFire = m.now()
+	m.mu.Unlock()
+	t := strings.TrimSpace(text)
+	low := strings.ToLower(t)
+	wish := ""
+	for _, p := range makePostPrefixes {
+		if strings.HasPrefix(low, p) {
+			wish = strings.TrimSpace(strings.TrimLeft(string([]rune(t)[len([]rune(p)):]), " ,.:-—"))
+			break
+		}
+	}
+	if _, err := m.Writer.Fire(ctx, wish); err != nil {
+		m.mu.Lock()
+		m.lastFire = time.Time{}
+		m.mu.Unlock()
+		m.Log.Error("autopost: запуск подготовки постов", "err", err)
+		return "⚠️ Не получилось запустить подготовку постов: " + err.Error()
+	}
+	msg := "🛠 Принял! Захожу на сайты застройщиков, собираю цены, сроки и акции и делаю 3–5 постов в разных стилях."
+	if wish != "" {
+		msg += "\nПожелание: " + wish
+	}
+	return msg + "\nПревью придут сюда на одобрение примерно через 15–30 минут."
 }

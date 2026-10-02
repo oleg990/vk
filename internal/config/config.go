@@ -18,18 +18,20 @@ type Config struct {
 	CallPhone  string // номер для кнопки «Позвонить Олегу»
 
 	// Автопостинг
-	VKUserToken string   // пользовательский ключ (wall, photos, offline) — публикация на стене
-	HFToken     string   // токен Hugging Face для генерации фото
-	HFRouterURL string   // https://router.huggingface.co
-	HFProviders []string // провайдеры FLUX по порядку: fal-ai, nscale
-	FBKey       string   // Fusion Brain (Kandinsky): ключ
-	FBSecret    string   // Fusion Brain: секрет
-	FBURL       string
-	PexelsKey   string // фотосток Pexels (бесплатный ключ)
-	PixabayKey  string // фотосток Pixabay (бесплатный ключ)
-	ContentURL  string // откуда брать очередь постов
-	VKAPIURL    string // по умолчанию https://api.vk.com/method/
-	Timezone    string
+	VKUserToken  string   // пользовательский ключ (wall, photos, offline) — публикация на стене
+	HFToken      string   // токен Hugging Face для генерации фото
+	HFRouterURL  string   // https://router.huggingface.co
+	HFProviders  []string // провайдеры FLUX по порядку: fal-ai, nscale
+	FBKey        string   // Fusion Brain (Kandinsky): ключ
+	FBSecret     string   // Fusion Brain: секрет
+	FBURL        string
+	PexelsKey    string // фотосток Pexels (бесплатный ключ)
+	PixabayKey   string // фотосток Pixabay (бесплатный ключ)
+	RoutineID    string // задача Claude «сделай пост» (claude.ai/code/routines)
+	RoutineToken string // её API-токен
+	ContentURL   string // откуда брать очередь постов
+	VKAPIURL     string // по умолчанию https://api.vk.com/method/
+	Timezone     string
 }
 
 func Load() (Config, error) {
@@ -39,18 +41,20 @@ func Load() (Config, error) {
 		PrivacyURL: os.Getenv("PRIVACY_URL"),
 		CallPhone:  envOr("CALL_PHONE", "+79205952888"),
 
-		VKUserToken: strings.TrimSpace(os.Getenv("VK_USER_TOKEN")),
-		HFToken:     strings.TrimSpace(os.Getenv("HF_TOKEN")),
-		HFRouterURL: envOr("HF_ROUTER_URL", "https://router.huggingface.co"),
-		HFProviders: strings.Split(envOr("HF_PROVIDERS", "fal-ai,nscale"), ","),
-		FBKey:       strings.TrimSpace(os.Getenv("FB_KEY")),
-		FBSecret:    strings.TrimSpace(os.Getenv("FB_SECRET")),
-		FBURL:       envOr("FB_URL", "https://api-key.fusionbrain.ai"),
-		PexelsKey:   strings.TrimSpace(os.Getenv("PEXELS_KEY")),
-		PixabayKey:  strings.TrimSpace(os.Getenv("PIXABAY_KEY")),
-		ContentURL:  envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
-		VKAPIURL:    os.Getenv("VK_API_URL"),
-		Timezone:    envOr("TZ_NAME", "Europe/Moscow"),
+		VKUserToken:  strings.TrimSpace(os.Getenv("VK_USER_TOKEN")),
+		HFToken:      strings.TrimSpace(os.Getenv("HF_TOKEN")),
+		HFRouterURL:  envOr("HF_ROUTER_URL", "https://router.huggingface.co"),
+		HFProviders:  strings.Split(envOr("HF_PROVIDERS", "fal-ai,nscale"), ","),
+		FBKey:        strings.TrimSpace(os.Getenv("FB_KEY")),
+		FBSecret:     strings.TrimSpace(os.Getenv("FB_SECRET")),
+		FBURL:        envOr("FB_URL", "https://api-key.fusionbrain.ai"),
+		PexelsKey:    strings.TrimSpace(os.Getenv("PEXELS_KEY")),
+		PixabayKey:   strings.TrimSpace(os.Getenv("PIXABAY_KEY")),
+		RoutineID:    strings.TrimSpace(os.Getenv("ROUTINE_ID")),
+		RoutineToken: strings.TrimSpace(os.Getenv("ROUTINE_TOKEN")),
+		ContentURL:   envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
+		VKAPIURL:     os.Getenv("VK_API_URL"),
+		Timezone:     envOr("TZ_NAME", "Europe/Moscow"),
 	}
 	var errs []error
 	if c.VKToken == "" {

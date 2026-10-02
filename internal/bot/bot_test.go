@@ -350,3 +350,24 @@ func TestContactCallButton(t *testing.T) {
 		t.Fatal("call button must be only in contact flow")
 	}
 }
+
+func TestAdminPanel(t *testing.T) {
+	b, fs, _ := newBot(t)
+	ctx := context.Background()
+	b.Handle(ctx, Incoming{UserID: admin, Text: "Начать"})
+	if fs.last().kb == nil || fs.last().kb.Buttons[0][0].Action.Label != "📝 Сделай пост" {
+		t.Fatalf("admin must get the panel: %+v", fs.last())
+	}
+	b.Handle(ctx, Incoming{UserID: admin, Text: "📊 Статистика", Payload: map[string]string{"cmd": admStats}})
+	if !strings.Contains(fs.last().text, "всего") {
+		t.Fatalf("stats: %q", fs.last().text)
+	}
+	b.Handle(ctx, Incoming{UserID: admin, Text: "👀 Меню клиента", Payload: map[string]string{"cmd": admClient}})
+	if fs.last().kb.Buttons[0][0].Action.Label != btnBuy {
+		t.Fatal("client menu expected")
+	}
+	b.Handle(ctx, Incoming{UserID: 555, Text: "Начать"})
+	if fs.last().kb.Buttons[0][0].Action.Label != btnBuy {
+		t.Fatal("clients keep the client menu")
+	}
+}

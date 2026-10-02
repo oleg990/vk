@@ -3,13 +3,18 @@ package bot
 import (
 	"context"
 	"fmt"
+	"realty-bot/internal/vk"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const adminHelp = `Команды:
+const adminHelp = `Кнопки панели — внизу. Текстом можно:
+сделай пост [пожелание] — Claude соберёт факты с сайтов застройщиков и сделает 3–5 постов (например: «сделай пост про ДСК»)
+меню — показать панель
+
+Команды:
 /статистика — заявки за сегодня, 7 и 30 дней по видам
 /заявки [дней] — все заявки (по умолчанию за сутки)
 /продавцы [дней] — продавцы (по умолчанию 30 дней)
@@ -203,4 +208,62 @@ func (b *Bot) stats(ctx context.Context) string {
 		}
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// Кнопки панели Олега (payload cmd).
+const (
+	admPost    = "adm_post"
+	admUrgent  = "adm_urgent"
+	admQueue   = "adm_queue"
+	admRefresh = "adm_refresh"
+	admStats   = "adm_stats"
+	admLeads   = "adm_leads"
+	admSellers = "adm_sellers"
+	admBuyers  = "adm_buyers"
+	admClient  = "adm_client"
+	admHelp    = "adm_help"
+)
+
+// AdminKeyboard — постоянная клавиатура Олега вместо клиентского меню.
+func AdminKeyboard() *vk.Keyboard {
+	btn := func(label, cmd string, color string) vk.Button { return vk.TextButton(label, payload(cmd), color) }
+	return &vk.Keyboard{Buttons: [][]vk.Button{
+		{btn("📝 Сделай пост", admPost, vk.ColorPositive), btn("⚡ Срочный пост", admUrgent, vk.ColorNegative)},
+		{btn("📋 Очередь постов", admQueue, vk.ColorPrimary), btn("🔄 Обновить", admRefresh, vk.ColorSecondary)},
+		{btn("📊 Статистика", admStats, vk.ColorPrimary), btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary)},
+		{btn("💰 Продавцы", admSellers, vk.ColorSecondary), btn("🏠 Покупатели", admBuyers, vk.ColorSecondary)},
+		{btn("👀 Меню клиента", admClient, vk.ColorSecondary), btn("❓ Помощь", admHelp, vk.ColorSecondary)},
+	}}
+}
+
+func (b *Bot) sendAdminPanel(ctx context.Context, peer int64, text string) {
+	b.reply(ctx, peer, text, AdminKeyboard())
+}
+
+// adminButton обрабатывает кнопки панели, которые относятся к заявкам и меню.
+// Кнопки постов (сделай пост, очередь, обновить, срочный) обрабатывает автопостинг до бота.
+func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
+	var out string
+	switch cmd {
+	case admStats:
+		out = b.stats(ctx)
+	case admLeads:
+		out = b.listLeads(ctx, "", 1)
+	case admSellers:
+		out = b.listLeads(ctx, flowSell, 30)
+	case admBuyers:
+		out = b.listLeads(ctx, flowBuy, 30)
+	case admHelp:
+		out = adminHelp
+	case admUrgent:
+		out = "Напишите /срочно и текст поста одним сообщением. Можно приложить фото — оно станет картинкой поста.\nПример: /срочно Снизили цену на 2-комнатную на Жукова!"
+	case admClient:
+		b.dropSession(ctx, peer)
+		b.sendMenu(ctx, peer, "Так меню видят клиенты. Вернуться в панель — напишите «меню».")
+		return true
+	default:
+		return false
+	}
+	b.reply(ctx, peer, out, AdminKeyboard())
+	return true
 }

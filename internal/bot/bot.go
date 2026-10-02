@@ -166,7 +166,15 @@ func (b *Bot) Handle(ctx context.Context, in Incoming) {
 	if in.Payload["command"] == "start" {
 		cmd = "menu"
 	}
+	isAdmin := in.UserID == b.opt.AdminID && b.opt.AdminID != 0
+	if isAdmin && b.adminButton(ctx, in.UserID, cmd) {
+		return
+	}
 	switch norm := normalize(text); {
+	case isAdmin && (cmd == "menu" || norm == "начать" || norm == "меню" || norm == "start" || norm == "старт" || norm == "панель"):
+		b.dropSession(ctx, in.UserID)
+		b.sendAdminPanel(ctx, in.UserID, "Панель управления 👇")
+		return
 	case cmd == "menu", text == btnMenu, norm == "начать", norm == "меню", norm == "start", norm == "старт":
 		b.dropSession(ctx, in.UserID)
 		b.sendMenu(ctx, in.UserID, "Здравствуйте! Я помогу подобрать или продать недвижимость. Что вас интересует?")
@@ -184,6 +192,10 @@ func (b *Bot) Handle(ctx context.Context, in Incoming) {
 		return
 	}
 	if s == nil {
+		if isAdmin {
+			b.sendAdminPanel(ctx, in.UserID, "Не понял команду. Панель управления 👇\nМожно написать: «сделай пост про ДСК» или /помощь")
+			return
+		}
 		b.sendMenu(ctx, in.UserID, "Выберите, что вас интересует 👇")
 		return
 	}

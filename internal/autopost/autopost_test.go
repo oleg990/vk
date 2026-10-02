@@ -428,3 +428,34 @@ func TestStripAccessKeys(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+type fakeWriter struct {
+	wishes []string
+	err    error
+}
+
+func (f *fakeWriter) Fire(_ context.Context, wish string) (string, error) {
+	f.wishes = append(f.wishes, wish)
+	return "https://claude.ai/code/session_1", f.err
+}
+
+func TestMakePostCommand(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, _ := newManager(t)
+	if !m.HandleAdmin(ctx, 1, "сделай пост", nil) || !strings.Contains(msg.last().text, "не настроена") {
+		t.Fatalf("no writer: %q", msg.last().text)
+	}
+	w := &fakeWriter{}
+	m.Writer = w
+	m.HandleAdmin(ctx, 1, "Сделай посты про ДСК, 2 штуки", nil)
+	if len(w.wishes) != 1 || w.wishes[0] != "про ДСК, 2 штуки" || !strings.Contains(msg.last().text, "Принял") {
+		t.Fatalf("wishes=%q reply=%q", w.wishes, msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "сделай пост", nil) // повтор сразу — не запускаем второй раз
+	if len(w.wishes) != 1 || !strings.Contains(msg.last().text, "уже готовятся") {
+		t.Fatalf("cooldown: %q", msg.last().text)
+	}
+	if m.HandleAdmin(ctx, 999, "сделай пост", nil) {
+		t.Fatal("non-admin must be ignored")
+	}
+}
