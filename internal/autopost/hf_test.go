@@ -156,3 +156,28 @@ func TestPixabaySearch(t *testing.T) {
 		t.Fatalf("img=%q err=%v", img, err)
 	}
 }
+
+func TestOpenverseNoKey(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/images/":
+			q := r.URL.Query()
+			if q.Get("license") != "cc0,pdm" || q.Get("q") != "cozy kitchen" || r.Header.Get("User-Agent") == "" {
+				t.Errorf("search %v", q)
+			}
+			if q.Get("aspect_ratio") == "tall" {
+				fmt.Fprint(w, `{"results":[{"url":"x","width":100,"height":200}]}`) // мелкая — отбрасывается
+				return
+			}
+			fmt.Fprintf(w, `{"results":[{"url":"%s/img.jpg","width":2000,"height":1500}]}`, srv.URL)
+		case "/img.jpg":
+			fmt.Fprint(w, "jpg")
+		}
+	}))
+	defer srv.Close()
+	img, err := Openverse{URL: srv.URL, HTTP: srv.Client()}.Search(context.Background(), "cozy kitchen")
+	if err != nil || string(img) != "jpg" {
+		t.Fatalf("img=%q err=%v", img, err)
+	}
+}

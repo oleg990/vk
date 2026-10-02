@@ -66,6 +66,7 @@ func run(log *slog.Logger) error {
 		Photos: autopost.Stocks{
 			autopost.Pixabay{URL: "https://pixabay.com", Key: cfg.PixabayKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
 			autopost.Pexels{URL: "https://api.pexels.com", Key: cfg.PexelsKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
+			autopost.Openverse{URL: "https://api.openverse.org", HTTP: &http.Client{Timeout: 60 * time.Second}}, // без ключа
 		},
 		Gen: autopost.Chain{
 			// бесплатный Kandinsky первым, FLUX через Hugging Face — запасной

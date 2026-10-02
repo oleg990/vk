@@ -74,6 +74,11 @@ func (p Pexels) get(ctx context.Context, u string, auth bool) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	return readOK(resp)
+}
+
+// readOK читает тело ответа или возвращает ошибку со статусом и началом текста.
+func readOK(resp *http.Response) ([]byte, error) {
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 30<<20))
 	if resp.StatusCode != http.StatusOK {
 		msg := string(raw)
