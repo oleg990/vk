@@ -28,6 +28,9 @@ type Item struct {
 
 // Slide — одна картинка карусели. Prompt пустой — фирменный фон.
 type Slide struct {
+	// Photo — своё фото слайда (путь в content/, например posts/<id>/photo.jpg): рендер ЖК, фото объекта.
+	// Если задано — фотосток и генерация не нужны.
+	Photo   string `json:"photo,omitempty"`
 	Prompt  string `json:"prompt,omitempty"`
 	Query   string `json:"query,omitempty"`
 	Overlay string `json:"overlay,omitempty"`
@@ -96,6 +99,7 @@ func (c Content) Queue(ctx context.Context) ([]Item, error) {
 			it.Overlay = abs(it.Overlay)
 			for i := range it.Slides {
 				it.Slides[i].Overlay = abs(it.Slides[i].Overlay)
+				it.Slides[i].Photo = abs(it.Slides[i].Photo)
 			}
 			items = append(items, it)
 		}
