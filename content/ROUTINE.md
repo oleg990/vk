@@ -21,3 +21,7 @@
 5. Проверь, что `content/queue.json` — валидный JSON. Закоммить и запушь в `main`.
    Если push в main запрещён (403 / только ветки `claude/…`): в начале работы `git fetch origin`; если есть `origin/claude/posts` — `git checkout -B claude/posts origin/claude/posts && git merge --no-edit origin/main`, иначе `git checkout -B claude/posts origin/main`; в конце `git push origin claude/posts`. Бот читает очередь и из main, и из claude/posts.
 6. В конце кратко: созданные посты (id, застройщик, стиль, дата или «запас») и ссылки на страницы-источники.
+
+## Сеть
+
+Сайты застройщиков разрешены в сетевой политике окружения (claude.ai/code → окружение Default → Network access → Custom). Новый сайт в `sources.json` нужно добавить и туда. Если какой-то сайт закрыт (EGRESS_BLOCKED), не останавливайся: сделай посты по остальным и в конце напиши, какой домен добавить.
