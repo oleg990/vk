@@ -1,7 +1,29 @@
 [
-  {"name": "ГК «Развитие»", "city": "Воронеж", "url": "https://rzv.ru/"},
-  {"name": "ИНСТЕП", "city": "Воронеж", "url": "https://instep.city/"},
-  {"name": "ДСК", "city": "Воронеж", "url": "https://dsk.vrn.ru/proekty/"},
-  {"name": "ССК", "city": "Краснодар", "url": "https://sskuban.ru/"},
-  {"name": "А101", "city": "Москва", "url": "https://a101.ru/"}
+  {
+    "name": "ГК «Развитие»",
+    "city": "Воронеж",
+    "url": "https://rzv.ru/"
+  },
+  {
+    "name": "ИНСТЕП",
+    "city": "Воронеж",
+    "url": "https://instep.city/"
+  },
+  {
+    "name": "ДСК",
+    "city": "Воронеж",
+    "url": "https://dsk.vrn.ru/proekty/"
+  },
+  {
+    "name": "ССК",
+    "city": "Краснодар",
+    "url": "https://sskuban.ru/"
+  },
+  {
+    "name": "А101",
+    "city": "Москва",
+    "url": "https://a101.ru/",
+    "materials": "https://drive.a101.ru/s/bHCJ7M2enqSPrXJ",
+    "materials_note": "Папка материалов «ЖИЛАЯ НЕДВИЖИМОСТЬ» (Nextcloud, ~28 ГБ). Список: curl -s -X PROPFIND -H 'Depth: 1' -u bHCJ7M2enqSPrXJ: https://drive.a101.ru/public.php/webdav/<путь>. Скачивать только нужные небольшие файлы (рендеры ЖК, прайсы PDF до 20 МБ)."
+  }
 ]

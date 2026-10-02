@@ -183,9 +183,20 @@ def build(spec_path, preview=None):
             item = {"prompt": s["prompt"], **item}
         if s.get("query"):
             item = {"query": s["query"], **item}
+        if s.get("photo"):
+            # своё фото (рендер ЖК и т.п.), путь относительно content/ — бот возьмёт его вместо стока
+            item = {"photo": s["photo"], **item}
         slides.append(item)
         if preview:
-            bg = stand_in_photo().convert("RGBA")
+            own = os.path.join(os.path.dirname(os.path.dirname(base)), s["photo"]) if s.get("photo") else ""
+            if own and os.path.exists(own):
+                ph = Image.open(own).convert("RGB")
+                sc = max(W / ph.width, H / ph.height)
+                ph = ph.resize((int(ph.width * sc) + 1, int(ph.height * sc) + 1), Image.LANCZOS)
+                l, t = (ph.width - W) // 2, (ph.height - H) // 2
+                bg = ph.crop((l, t, l + W, t + H)).convert("RGBA")
+            else:
+                bg = stand_in_photo().convert("RGBA")
             bg.alpha_composite(Image.open(out).convert("RGBA"))
             os.makedirs(preview, exist_ok=True)
             bg.convert("RGB").save(os.path.join(preview, f"{pid}-{name}"))

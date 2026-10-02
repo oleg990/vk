@@ -494,3 +494,14 @@ func TestDraftsReleasedInstantly(t *testing.T) {
 		t.Fatalf("after sync: %v, d4=%v", states["d1"].PublishAt, states["d4"])
 	}
 }
+
+func TestSlideOwnPhoto(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, gen := newManager(t, Item{ID: "p1", Text: "x", Slides: []Slide{{Photo: "posts/p1/photo.jpg", Query: "city", Overlay: "posts/p1/01.png"}}})
+	ph := &fakePhotos{}
+	m.Photos = ph
+	m.Tick(ctx)
+	if gen.calls != 0 || ph.calls != 0 || msg.previews() != 1 {
+		t.Fatalf("own photo must be used: gen=%d stock=%d previews=%d", gen.calls, ph.calls, msg.previews())
+	}
+}

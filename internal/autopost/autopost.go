@@ -360,6 +360,12 @@ func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) (
 			return nil, fmt.Errorf("фото из сообщения: %w", err)
 		}
 		photo = p
+	} else if sl.Photo != "" {
+		p, err := m.Content.Overlay(ctx, sl.Photo)
+		if err != nil {
+			return nil, fmt.Errorf("фото слайда: %w", err)
+		}
+		photo = p
 	} else if sl.Prompt != "" || sl.Query != "" {
 		p, err := m.photoFor(ctx, sl)
 		switch {
