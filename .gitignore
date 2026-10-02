@@ -2,3 +2,4 @@
 data/
 /realty-bot
 *.tmp
+__pycache__/
