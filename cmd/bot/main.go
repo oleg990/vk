@@ -63,7 +63,7 @@ func run(log *slog.Logger) error {
 	ap := &autopost.Manager{
 		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
 		Content: autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
-		Gen:     autopost.HF{URL: cfg.HFImageURL, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
+		Gen:     autopost.HF{URL: cfg.HFRouterURL, Providers: cfg.HFProviders, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
 		Store:   store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
 		HTTP: &http.Client{Timeout: 60 * time.Second},
 	}

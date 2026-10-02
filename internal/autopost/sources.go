@@ -3,6 +3,7 @@ package autopost
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,42 +76,135 @@ func (c Content) Overlay(ctx context.Context, path string) ([]byte, error) {
 // ErrNoToken — HF_TOKEN не задан: посты ждут, попытки не тратятся.
 var ErrNoToken = errors.New("HF_TOKEN не задан")
 
-// HF генерирует картинку через Hugging Face Inference API (FLUX.1-schnell).
+// HF генерирует картинку FLUX.1-schnell через Hugging Face Inference Providers
+// (router.huggingface.co, оплата — из кредитов аккаунта HF). Провайдеры пробуются по порядку.
 type HF struct {
-	URL   string
-	Token string
-	HTTP  *http.Client
+	URL       string   // https://router.huggingface.co
+	Providers []string // fal-ai, nscale
+	Token     string
+	HTTP      *http.Client
 }
 
 func (h HF) Generate(ctx context.Context, prompt string) ([]byte, error) {
 	if h.Token == "" {
 		return nil, ErrNoToken
 	}
-	body, _ := json.Marshal(map[string]any{
-		"inputs": prompt,
-		"parameters": map[string]any{
-			"width": 1024, "height": 1280, "num_inference_steps": 4, "seed": rand.IntN(1 << 30),
-		},
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.URL, bytes.NewReader(body))
+	providers := h.Providers
+	if len(providers) == 0 {
+		providers = []string{"fal-ai", "nscale"}
+	}
+	var errs []string
+	for _, p := range providers {
+		p = strings.TrimSpace(p)
+		var img []byte
+		var err error
+		switch p {
+		case "fal-ai":
+			img, err = h.fal(ctx, prompt)
+		case "nscale":
+			img, err = h.nscale(ctx, prompt)
+		default:
+			err = fmt.Errorf("неизвестный провайдер")
+		}
+		if err == nil {
+			return img, nil
+		}
+		errs = append(errs, p+": "+err.Error())
+	}
+	return nil, fmt.Errorf("Hugging Face: %s", strings.Join(errs, "; "))
+}
+
+func (h HF) post(ctx context.Context, path string, payload any, out any) error {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(h.URL, "/")+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+h.Token)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "image/png")
+	resp, err := h.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 40<<20))
+	if resp.StatusCode != http.StatusOK {
+		msg := string(raw)
+		if len(msg) > 300 {
+			msg = msg[:300]
+		}
+		return fmt.Errorf("%s: %s", resp.Status, msg)
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		return fmt.Errorf("ответ: %w", err)
+	}
+	return nil
+}
+
+func (h HF) fal(ctx context.Context, prompt string) ([]byte, error) {
+	var out struct {
+		Images []struct {
+			URL string `json:"url"`
+		} `json:"images"`
+	}
+	err := h.post(ctx, "/fal-ai/fal-ai/flux/schnell", map[string]any{
+		"prompt":              prompt,
+		"image_size":          map[string]int{"width": 1024, "height": 1280},
+		"num_inference_steps": 4,
+		"num_images":          1,
+		"seed":                rand.IntN(1 << 30),
+		"sync_mode":           true,
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	if len(out.Images) == 0 || out.Images[0].URL == "" {
+		return nil, fmt.Errorf("пустой ответ")
+	}
+	return h.fetchImage(ctx, out.Images[0].URL)
+}
+
+func (h HF) nscale(ctx context.Context, prompt string) ([]byte, error) {
+	var out struct {
+		Data []struct {
+			B64 string `json:"b64_json"`
+		} `json:"data"`
+	}
+	err := h.post(ctx, "/nscale/v1/images/generations", map[string]any{
+		"model":           "black-forest-labs/FLUX.1-schnell",
+		"prompt":          prompt,
+		"size":            "1024x1280",
+		"response_format": "b64_json",
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	if len(out.Data) == 0 || out.Data[0].B64 == "" {
+		return nil, fmt.Errorf("пустой ответ")
+	}
+	return base64.StdEncoding.DecodeString(out.Data[0].B64)
+}
+
+// fetchImage понимает data:image/...;base64,... и обычные https-ссылки.
+func (h HF) fetchImage(ctx context.Context, u string) ([]byte, error) {
+	if strings.HasPrefix(u, "data:") {
+		i := strings.Index(u, ",")
+		if i < 0 {
+			return nil, fmt.Errorf("битый data URI")
+		}
+		return base64.StdEncoding.DecodeString(u[i+1:])
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := h.HTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 30<<20))
-	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/") {
-		msg := string(raw)
-		if len(msg) > 300 {
-			msg = msg[:300]
-		}
-		return nil, fmt.Errorf("Hugging Face %s: %s", resp.Status, msg)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("скачивание картинки: %s", resp.Status)
 	}
-	return raw, nil
+	return io.ReadAll(io.LimitReader(resp.Body, 30<<20))
 }

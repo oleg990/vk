@@ -18,11 +18,12 @@ type Config struct {
 	CallPhone  string // номер для кнопки «Позвонить Олегу»
 
 	// Автопостинг
-	VKUserToken string // пользовательский ключ (wall, photos, offline) — публикация на стене
-	HFToken     string // токен Hugging Face для генерации фото
-	HFImageURL  string
-	ContentURL  string // откуда брать очередь постов
-	VKAPIURL    string // по умолчанию https://api.vk.com/method/
+	VKUserToken string   // пользовательский ключ (wall, photos, offline) — публикация на стене
+	HFToken     string   // токен Hugging Face для генерации фото
+	HFRouterURL string   // https://router.huggingface.co
+	HFProviders []string // провайдеры FLUX по порядку: fal-ai, nscale
+	ContentURL  string   // откуда брать очередь постов
+	VKAPIURL    string   // по умолчанию https://api.vk.com/method/
 	Timezone    string
 }
 
@@ -35,7 +36,8 @@ func Load() (Config, error) {
 
 		VKUserToken: strings.TrimSpace(os.Getenv("VK_USER_TOKEN")),
 		HFToken:     strings.TrimSpace(os.Getenv("HF_TOKEN")),
-		HFImageURL:  envOr("HF_IMAGE_URL", "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"),
+		HFRouterURL: envOr("HF_ROUTER_URL", "https://router.huggingface.co"),
+		HFProviders: strings.Split(envOr("HF_PROVIDERS", "fal-ai,nscale"), ","),
 		ContentURL:  envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
 		VKAPIURL:    os.Getenv("VK_API_URL"),
 		Timezone:    envOr("TZ_NAME", "Europe/Moscow"),

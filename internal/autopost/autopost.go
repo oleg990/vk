@@ -121,6 +121,7 @@ func (m *Manager) save(ctx context.Context, states map[string]*State) error {
 
 // Run: синхронизация очереди и подготовка превью раз в interval.
 func (m *Manager) Run(ctx context.Context, interval time.Duration) {
+	m.retryErrors(ctx)
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -546,4 +547,23 @@ func (m *Manager) list(ctx context.Context) string {
 		fmt.Fprintf(&sb, "\n%s · %s · %s", m.fmtTime(st.PublishAt), st.ID, statusTitle[st.Status])
 	}
 	return sb.String()
+}
+
+// retryErrors при старте даёт постам с ошибкой новые попытки: после перезапуска
+// обычно что-то исправлено (ключ, провайдер), и жать «🔁» под каждым не нужно.
+func (m *Manager) retryErrors(ctx context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	states, err := m.load(ctx)
+	if err != nil {
+		return
+	}
+	for _, st := range states {
+		if st.Status == StatusError {
+			st.Status, st.Attempts, st.Error = StatusNew, 0, ""
+		}
+	}
+	if err := m.save(ctx, states); err != nil {
+		m.Log.Error("autopost save", "err", err)
+	}
 }
