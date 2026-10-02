@@ -371,3 +371,32 @@ func TestChainSkipsMissingKeys(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+type fakePhotos struct {
+	calls int
+	fail  bool
+}
+
+func (f *fakePhotos) Search(context.Context, string) ([]byte, error) {
+	f.calls++
+	if f.fail {
+		return nil, errors.New("сток недоступен")
+	}
+	return pngOf(800, 1000, color.RGBA{10, 10, 10, 255}), nil
+}
+
+func TestStockPhotoFirstThenGenerator(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, gen := newManager(t, Item{ID: "p1", Text: "x", Prompt: "room", Query: "cozy room"})
+	ph := &fakePhotos{}
+	m.Photos = ph
+	m.Tick(ctx)
+	if ph.calls != 1 || gen.calls != 0 || msg.previews() != 1 {
+		t.Fatalf("stock=%d gen=%d previews=%d", ph.calls, gen.calls, msg.previews())
+	}
+	ph.fail = true
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_redo", "id": "p1"})
+	if gen.calls != 1 || msg.previews() != 2 {
+		t.Fatalf("fallback to generator: gen=%d previews=%d", gen.calls, msg.previews())
+	}
+}

@@ -44,6 +44,7 @@ type State struct {
 	PublishAt time.Time `json:"publish_at"`
 	Text      string    `json:"text"`
 	Prompt    string    `json:"prompt"`
+	Query     string    `json:"query,omitempty"`
 	Overlay   string    `json:"overlay"`
 	PhotoURL  string    `json:"photo_url,omitempty"` // фото, присланное с /срочно
 	Slides    []Slide   `json:"slides,omitempty"`
@@ -73,6 +74,11 @@ type Generator interface {
 	Generate(ctx context.Context, prompt string) ([]byte, error)
 }
 
+// PhotoSearch ищет готовое фото по запросу (фотосток).
+type PhotoSearch interface {
+	Search(ctx context.Context, query string) ([]byte, error)
+}
+
 type ContentSource interface {
 	Queue(ctx context.Context) ([]Item, error)
 	Overlay(ctx context.Context, path string) ([]byte, error)
@@ -88,6 +94,7 @@ type Manager struct {
 	Wall    Wall // nil — нет VK_USER_TOKEN, публикация недоступна
 	Content ContentSource
 	Gen     Generator
+	Photos  PhotoSearch // nil — без фотостока
 	Store   storage.Store
 	DataDir string
 	HTTP    *http.Client // скачивание фото из сообщений
@@ -163,9 +170,10 @@ func (m *Manager) Sync(ctx context.Context) error {
 		}
 		st, ok := states[it.ID]
 		if !ok {
-			states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: it.PublishAt, Text: it.Text, Prompt: it.Prompt, Overlay: it.Overlay, Slides: it.Slides}
+			states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: it.PublishAt, Text: it.Text, Prompt: it.Prompt, Query: it.Query, Overlay: it.Overlay, Slides: it.Slides}
 			continue
 		}
+		st.Query = it.Query // запрос к фотостоку не пересобирает уже готовые картинки
 		changed := st.Text != it.Text || st.Prompt != it.Prompt || st.Overlay != it.Overlay || !st.PublishAt.Equal(it.PublishAt) || !sameSlides(st.Slides, it.Slides)
 		if changed && (st.Status == StatusNew || st.Status == StatusAwaiting || st.Status == StatusError) {
 			st.Text, st.Prompt, st.Overlay, st.PublishAt, st.Slides = it.Text, it.Prompt, it.Overlay, it.PublishAt, it.Slides
@@ -237,7 +245,7 @@ func (st *State) slideList() []Slide {
 		}
 		return st.Slides
 	}
-	return []Slide{{Prompt: st.Prompt, Overlay: st.Overlay}}
+	return []Slide{{Prompt: st.Prompt, Query: st.Query, Overlay: st.Overlay}}
 }
 
 func (st *State) imageList() []string {
@@ -326,8 +334,8 @@ func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) (
 			return nil, fmt.Errorf("фото из сообщения: %w", err)
 		}
 		photo = p
-	} else if sl.Prompt != "" {
-		p, err := m.Gen.Generate(ctx, sl.Prompt)
+	} else if sl.Prompt != "" || sl.Query != "" {
+		p, err := m.photoFor(ctx, sl)
 		switch {
 		case err == nil:
 			photo = p
@@ -348,6 +356,40 @@ func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) (
 		return nil, err
 	}
 	return Compose(photo, overlay)
+}
+
+// photoFor: сначала настоящее фото со стока по запросу (Query), затем генерация по описанию (Prompt).
+func (m *Manager) photoFor(ctx context.Context, sl Slide) ([]byte, error) {
+	var errs []string
+	noKey := false
+	try := func(img []byte, err error) []byte {
+		switch {
+		case err == nil:
+			return img
+		case errors.Is(err, ErrNoToken):
+			noKey = true
+		default:
+			errs = append(errs, err.Error())
+		}
+		return nil
+	}
+	if sl.Query != "" && m.Photos != nil {
+		if img := try(m.Photos.Search(ctx, sl.Query)); img != nil {
+			return img, nil
+		}
+	}
+	if sl.Prompt != "" && m.Gen != nil {
+		if img := try(m.Gen.Generate(ctx, sl.Prompt)); img != nil {
+			return img, nil
+		}
+	}
+	if len(errs) == 0 && noKey {
+		return nil, ErrNoToken
+	}
+	if len(errs) == 0 {
+		return nil, nil
+	}
+	return nil, errors.New(strings.Join(errs, "; "))
 }
 
 func (m *Manager) download(ctx context.Context, u string) ([]byte, error) {

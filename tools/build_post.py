@@ -6,7 +6,7 @@ spec.json:
 {
   "id": "...", "publish_at": "2026-10-11T19:00:00+03:00", "text": "...",
   "slides": [
-    {"prompt": "english FLUX prompt", "cover": {"kicker": "", "title": ["", ""], "sub": "", "cta": ""}},
+    {"query": "stock photo search, 2-5 english words", "prompt": "english generator prompt", "cover": {"kicker": "", "title": ["", ""], "sub": "", "cta": ""}},
     {"list": {"kicker": "", "title": ["", ""], "rows": [{"n": "1", "t": "Имя", "s": "пояснение", "v": "от 5,1 млн"}], "note": ""}},
     {"cta": {"kicker": "", "title": ["", ""], "points": ["", ""], "button": ""}}
   ]
@@ -151,6 +151,8 @@ def build(spec_path, preview=None):
         item = {"overlay": f"posts/{pid}/{name}"}
         if s.get("prompt"):
             item = {"prompt": s["prompt"], **item}
+        if s.get("query"):
+            item = {"query": s["query"], **item}
         slides.append(item)
         if preview:
             bg = stand_in_photo() if s.get("prompt") else gradient()

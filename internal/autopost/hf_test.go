@@ -109,3 +109,29 @@ func TestKandinskyLegacyModels(t *testing.T) {
 		t.Fatalf("img=%q err=%v", img, err)
 	}
 }
+
+func TestPexelsSearch(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/search":
+			if r.Header.Get("Authorization") != "pk" || r.URL.Query().Get("query") != "cozy kitchen" || r.URL.Query().Get("orientation") != "portrait" {
+				t.Errorf("search req %v %v", r.Header, r.URL.Query())
+			}
+			fmt.Fprintf(w, `{"photos":[{"src":{"original":"%s/photo.jpeg"}}]}`, srv.URL)
+		case "/photo.jpeg":
+			if r.Header.Get("Authorization") != "" || r.URL.Query().Get("w") != "1080" {
+				t.Errorf("download req %v", r.URL)
+			}
+			fmt.Fprint(w, "jpeg")
+		}
+	}))
+	defer srv.Close()
+	img, err := Pexels{URL: srv.URL, Key: "pk", HTTP: srv.Client()}.Search(context.Background(), "cozy kitchen")
+	if err != nil || string(img) != "jpeg" {
+		t.Fatalf("img=%q err=%v", img, err)
+	}
+	if _, err := (Pexels{}).Search(context.Background(), "x"); err != ErrNoToken {
+		t.Fatalf("no key err = %v", err)
+	}
+}

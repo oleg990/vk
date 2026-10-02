@@ -4,27 +4,31 @@
     "publish_at": "2026-10-05T19:00:00+03:00",
     "prompt": "Photorealistic view of a modern residential neighborhood in a small Russian city, new mid-rise apartment buildings and a green courtyard with trees, clear daytime sky, natural daylight, wide shot from a pedestrian height, calm and clean, no people, no text, no logos, architectural photography, natural colors",
     "overlay": "posts/2026-10-05-znakomstvo/overlay.png",
-    "text": "Здравствуйте! Меня зовут Олег Маханько, я помогаю купить и продать недвижимость в Старом Осколе.\n\nЧем могу помочь:\n🏠 подобрать квартиру — вторичку или новостройку под ваш бюджет\n💰 продать вашу квартиру, дом или участок — от оценки до сделки\n🏦 разобраться с ипотекой и маткапиталом\n📋 проверить документы и провести сделку безопасно\n\nКак связаться: нажмите «Написать сообщение» в группе. Бот за минуту задаст пару вопросов, а я перезвоню и предложу варианты.\n\nПодписывайтесь — здесь будут подборки квартир, разборы сделок и советы, как не переплатить.\n\n#СтарыйОскол #недвижимостьСтарыйОскол"
+    "text": "Здравствуйте! Меня зовут Олег Маханько, я помогаю купить и продать недвижимость в Старом Осколе.\n\nЧем могу помочь:\n🏠 подобрать квартиру — вторичку или новостройку под ваш бюджет\n💰 продать вашу квартиру, дом или участок — от оценки до сделки\n🏦 разобраться с ипотекой и маткапиталом\n📋 проверить документы и провести сделку безопасно\n\nКак связаться: нажмите «Написать сообщение» в группе. Бот за минуту задаст пару вопросов, а я перезвоню и предложу варианты.\n\nПодписывайтесь — здесь будут подборки квартир, разборы сделок и советы, как не переплатить.\n\n#СтарыйОскол #недвижимостьСтарыйОскол",
+    "query": "modern apartment buildings courtyard"
   },
   {
     "id": "2026-10-07-ocenka",
     "publish_at": "2026-10-07T19:00:00+03:00",
     "prompt": "Photorealistic interior of a bright cozy living room in a typical renovated apartment, sofa, light walls, wooden floor, large window with natural daylight, plants, wide-angle shot from the corner of the room, straight vertical lines, no people, no text, no logos, real estate photography, natural colors",
     "overlay": "posts/2026-10-07-ocenka/overlay.png",
-    "text": "Думаете продавать, но не знаете, какую цену ставить? Слишком высокая — квартира стоит месяцами. Слишком низкая — вы теряете деньги.\n\nНапишите в сообщения группы и выберите «💰 Продать недвижимость». Ответьте на несколько вопросов — бот сразу покажет предварительную вилку цены по средней стоимости квадратного метра в вашем районе.\n\nТочную цену назову после осмотра. Оценка бесплатная и ни к чему не обязывает.\n\n#СтарыйОскол #недвижимостьСтарыйОскол #продатьквартиру"
+    "text": "Думаете продавать, но не знаете, какую цену ставить? Слишком высокая — квартира стоит месяцами. Слишком низкая — вы теряете деньги.\n\nНапишите в сообщения группы и выберите «💰 Продать недвижимость». Ответьте на несколько вопросов — бот сразу покажет предварительную вилку цены по средней стоимости квадратного метра в вашем районе.\n\nТочную цену назову после осмотра. Оценка бесплатная и ни к чему не обязывает.\n\n#СтарыйОскол #недвижимостьСтарыйОскол #продатьквартиру",
+    "query": "cozy living room interior"
   },
   {
     "id": "2026-10-09-ipoteka",
     "publish_at": "2026-10-09T19:00:00+03:00",
     "prompt": "Photorealistic bright modern kitchen with a dining table near a large window, morning natural daylight, light wood and white surfaces, a set of apartment keys on the table, shallow depth of field, no people, no text, no logos, no documents, real estate photography, natural colors",
     "overlay": "posts/2026-10-09-ipoteka/overlay.png",
-    "text": "Сколько стоит ипотека? Считаем за минуту.\n\nПример: квартира за 6 000 000 ₽, первоначальный взнос 20%, срок 20 лет, ставка 12%.\n💳 Платёж — около 52 850 ₽ в месяц\n📈 Переплата за весь срок — около 7,9 млн ₽\n\nВаш вариант бот посчитает сам: напишите в сообщения группы → «🧮 Рассчитать ипотеку». Введите стоимость, взнос и срок — получите платёж, переплату и примерный доход, который нужен для одобрения.\n\nПонравился платёж? Нажмите «Хочу подбор под этот платёж» — подберу квартиры в этом бюджете.\n\nРасчёт примерный, точные условия зависят от банка и программы.\n\n#СтарыйОскол #ипотека"
+    "text": "Сколько стоит ипотека? Считаем за минуту.\n\nПример: квартира за 6 000 000 ₽, первоначальный взнос 20%, срок 20 лет, ставка 12%.\n💳 Платёж — около 52 850 ₽ в месяц\n📈 Переплата за весь срок — около 7,9 млн ₽\n\nВаш вариант бот посчитает сам: напишите в сообщения группы → «🧮 Рассчитать ипотеку». Введите стоимость, взнос и срок — получите платёж, переплату и примерный доход, который нужен для одобрения.\n\nПонравился платёж? Нажмите «Хочу подбор под этот платёж» — подберу квартиры в этом бюджете.\n\nРасчёт примерный, точные условия зависят от банка и программы.\n\n#СтарыйОскол #ипотека",
+    "query": "modern kitchen interior"
   },
   {
     "id": "2026-10-11-voronezh-ceny",
     "publish_at": "2026-10-11T19:00:00+03:00",
     "slides": [
       {
+        "query": "modern residential buildings city",
         "prompt": "Photorealistic aerial view of a modern residential district in a large Russian city at golden hour, new high-rise apartment buildings with green courtyards and a park, warm evening light, wide shot, no people, no text, no logos, architectural photography, natural colors",
         "overlay": "posts/2026-10-11-voronezh-ceny/01.png"
       },
@@ -45,6 +49,7 @@
     "publish_at": "2026-10-13T19:00:00+03:00",
     "slides": [
       {
+        "query": "empty modern apartment",
         "prompt": "Photorealistic bright empty apartment in a newly completed building with clean white-box finish, large windows with city view, light floor, daylight, wide-angle shot from the corner, straight vertical lines, no furniture, no people, no text, no logos, real estate photography, natural colors",
         "overlay": "posts/2026-10-13-gotovye/01.png"
       },
@@ -65,6 +70,7 @@
     "publish_at": "2026-10-15T19:00:00+03:00",
     "slides": [
       {
+        "query": "residential building construction crane",
         "prompt": "Photorealistic modern residential high-rise under construction with tower cranes against a clear blue sky, next to completed new apartment buildings, daylight, wide shot from street level, no people, no text, no logos, architectural photography, natural colors",
         "overlay": "posts/2026-10-15-sroki/01.png"
       },
@@ -85,6 +91,7 @@
     "publish_at": "2026-10-17T19:00:00+03:00",
     "slides": [
       {
+        "query": "family new apartment",
         "prompt": "Photorealistic young family standing on the balcony of a new apartment, seen from behind, looking at a modern residential neighborhood, warm evening light, soft focus, no faces visible, no text, no logos, lifestyle real estate photography, natural colors",
         "overlay": "posts/2026-10-17-kak-kupit/01.png"
       },
@@ -105,6 +112,7 @@
     "publish_at": "2026-10-19T19:00:00+03:00",
     "slides": [
       {
+        "query": "laptop home office window",
         "prompt": "Photorealistic modern apartment interior with a laptop on a table showing a blurred floor plan, cup of coffee, bright window with city view in the background, daylight, shallow depth of field, no people, no readable text, no logos, lifestyle photography, natural colors",
         "overlay": "posts/2026-10-19-iz-oskola/01.png"
       },
