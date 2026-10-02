@@ -119,3 +119,35 @@ func TestWallUploadRetriesEmptyPhoto(t *testing.T) {
 		t.Fatalf("att=%q err=%v uploads=%d", att, err, uploads)
 	}
 }
+
+func TestWallPostsAndGroupStats(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/wall.get"):
+			if r.Form.Get("owner_id") != "-7" || r.Form.Get("access_token") != "user-token" {
+				t.Errorf("bad wall.get form: %v", r.Form)
+			}
+			fmt.Fprint(w, `{"response":{"count":2,"items":[
+				{"id":5,"date":1790000000,"text":"Пост","post_type":"post","views":{"count":120},"likes":{"count":4},"comments":{"count":1},"reposts":{"count":2}},
+				{"id":6,"date":1790000100,"text":"Реклама","post_type":"reply"}]}}`)
+		case strings.HasSuffix(r.URL.Path, "/stats.get"):
+			if r.Form.Get("group_id") != "7" || r.Form.Get("interval") != "all" {
+				t.Errorf("bad stats.get form: %v", r.Form)
+			}
+			fmt.Fprint(w, `{"response":[{"visitors":{"views":300,"visitors":90},"reach":{"reach":210},"activity":{"subscribed":6,"unsubscribed":1}}]}`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	c := New("user-token", 7, srv.URL, nil)
+	posts, err := c.WallPosts(context.Background(), 7, 50)
+	if err != nil || len(posts) != 1 || posts[0].Views != 120 || posts[0].Likes != 4 || posts[0].Reposts != 2 {
+		t.Fatalf("posts = %+v, err %v", posts, err)
+	}
+	st, err := c.GroupStats(context.Background(), 7, time.Unix(1, 0), time.Unix(2, 0))
+	if err != nil || st.Reach != 210 || st.Subscribed != 6 || st.Unsubscribed != 1 || st.Visitors != 90 {
+		t.Fatalf("stats = %+v, err %v", st, err)
+	}
+}

@@ -36,6 +36,7 @@ type Options struct {
 	CallPhone  string // номер Олега для кнопки «Позвонить», формат +7XXXXXXXXXX
 	Location   *time.Location
 	Log        *slog.Logger
+	Now        func() time.Time // для тестов; по умолчанию time.Now
 }
 
 type Bot struct {
@@ -44,6 +45,9 @@ type Bot struct {
 	opt   Options
 	flows map[string]*flow
 	log   *slog.Logger
+
+	nightMu   sync.Mutex
+	nightSeen map[int64]time.Time // когда клиенту в последний раз писали «отвечу с 9:00»
 
 	mu     sync.RWMutex
 	rates  map[string]float64 // программа → ставка, %
@@ -65,6 +69,7 @@ func New(ctx context.Context, send Sender, store storage.Store, opt Options) (*B
 	b := &Bot{
 		send: send, store: store, opt: opt, flows: buildFlows(), log: opt.Log,
 		rates: map[string]float64{}, prices: map[string]float64{},
+		nightSeen: map[int64]time.Time{},
 	}
 	if err := b.loadMap(ctx, settingRates, &b.rates); err != nil {
 		return nil, err
@@ -167,6 +172,9 @@ func (b *Bot) Handle(ctx context.Context, in Incoming) {
 		cmd = "menu"
 	}
 	isAdmin := in.UserID == b.opt.AdminID && b.opt.AdminID != 0
+	if !isAdmin {
+		b.nightNotice(ctx, in.UserID)
+	}
 	if isAdmin && b.adminButton(ctx, in.UserID, cmd) {
 		return
 	}
@@ -260,4 +268,34 @@ func (b *Bot) notifyAdmin(ctx context.Context, text string) {
 	if err != nil {
 		b.log.Error("notify admin", "err", err)
 	}
+}
+
+// Ночью (с 00:00 до 09:00 по времени бота) клиенту один раз за ночь сообщаем, когда ответит Олег.
+// Бот при этом работает как обычно: клиент может сразу пройти квиз.
+const (
+	nightFrom = 0
+	nightTo   = 9
+)
+
+func (b *Bot) now() time.Time {
+	if b.opt.Now != nil {
+		return b.opt.Now()
+	}
+	return time.Now()
+}
+
+func (b *Bot) nightNotice(ctx context.Context, peer int64) {
+	now := b.now().In(b.opt.Location)
+	if h := now.Hour(); h < nightFrom || h >= nightTo {
+		return
+	}
+	b.nightMu.Lock()
+	last, seen := b.nightSeen[peer]
+	if seen && now.Sub(last) < 8*time.Hour {
+		b.nightMu.Unlock()
+		return
+	}
+	b.nightSeen[peer] = now
+	b.nightMu.Unlock()
+	b.reply(ctx, peer, "🌙 Сейчас ночь — Олег ответит завтра с 9:00. А пока можно пройти квиз: ответьте на несколько вопросов, и я сразу пойму, чем помочь.", nil)
 }

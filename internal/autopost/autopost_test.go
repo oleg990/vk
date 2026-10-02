@@ -155,7 +155,7 @@ func TestPreviewApproveSchedules(t *testing.T) {
 	if !m.HandleAdmin(ctx, 1, "✅ По расписанию", btn(pv.kb, "✅ По расписанию")) {
 		t.Fatal("button not handled")
 	}
-	if wall.posts != 1 || wall.publishDate != now.Add(72*time.Hour).Unix() || wall.message != "Текст поста" {
+	if wall.posts != 1 || wall.publishDate != now.Add(72*time.Hour).Unix() || !strings.HasPrefix(wall.message, "Текст поста\n\n👉 ") || !strings.Contains(wall.message, "vk.me/club241936618") {
 		t.Fatalf("wall = %+v", wall)
 	}
 	if !strings.Contains(msg.last().text, "Запланировано") {
@@ -503,5 +503,23 @@ func TestSlideOwnPhoto(t *testing.T) {
 	m.Tick(ctx)
 	if gen.calls != 0 || ph.calls != 0 || msg.previews() != 1 {
 		t.Fatalf("own photo must be used: gen=%d stock=%d previews=%d", gen.calls, ph.calls, msg.previews())
+	}
+}
+
+func TestWithCTA(t *testing.T) {
+	m := &Manager{GroupID: 241936618}
+	got := m.withCTA("Цены снизились.\n\n#новостройки #Воронеж")
+	want := "Цены снизились.\n\n👉 Написать мне и подобрать вариант: https://vk.me/club241936618\nНажмите «Начать» — бот задаст несколько вопросов.\n\n#новостройки #Воронеж"
+	if got != want {
+		t.Fatalf("with hashtags:\n%q", got)
+	}
+	if !strings.HasSuffix(m.withCTA("Без тегов"), "несколько вопросов.") {
+		t.Fatal("cta must be appended when there are no hashtags")
+	}
+	if again := m.withCTA(got); again != got {
+		t.Fatal("cta must not be added twice")
+	}
+	if (&Manager{}).withCTA("x") != "x" {
+		t.Fatal("no group id — no cta")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -18,6 +19,7 @@ import (
 	"realty-bot/internal/bot"
 	"realty-bot/internal/config"
 	"realty-bot/internal/routine"
+	"realty-bot/internal/stats"
 	"realty-bot/internal/storage"
 	"realty-bot/internal/vk"
 )
@@ -78,6 +80,12 @@ func run(log *slog.Logger) error {
 		Store: store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
 		HTTP: &http.Client{Timeout: 60 * time.Second},
 	}
+	// просмотры и охват видны только с ключом администратора
+	var statSrc stats.Source = client
+	if cfg.VKUserToken != "" {
+		statSrc = client.WithToken(cfg.VKUserToken)
+	}
+	rep := &stats.Reporter{Src: statSrc, Msg: client, Store: store, GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Loc: loc, Log: log}
 	if cfg.VKUserToken != "" {
 		ap.Wall = client.WithToken(cfg.VKUserToken)
 	} else {
@@ -85,7 +93,10 @@ func run(log *slog.Logger) error {
 	}
 	if rc := (routine.Client{URL: "https://api.anthropic.com", ID: cfg.RoutineID, Token: cfg.RoutineToken,
 		HTTP: &http.Client{Timeout: 30 * time.Second}}); rc.Enabled() {
-		ap.Writer = rc
+		ap.Writer = stats.Writer{Inner: rc, R: rep}
+	}
+	if cfg.VKUserToken != "" {
+		go rep.Run(ctx) // недельный разбор по понедельникам
 	}
 	go ap.Run(ctx, 5*time.Minute)
 
@@ -102,6 +113,12 @@ func run(log *slog.Logger) error {
 		if msg.PeerID != msg.FromID || msg.FromID <= 0 { // только личные сообщения от людей
 			return
 		}
+		if msg.FromID == cfg.AdminVKID && isAnalytics(msg.Text, msg.PayloadMap()) {
+			if err := client.Send(ctx, msg.FromID, rep.Report(ctx), bot.AdminKeyboard()); err != nil {
+				log.Error("send analytics", "err", err)
+			}
+			return
+		}
 		if ap.HandleAdmin(ctx, msg.FromID, msg.Text, msg.PayloadMap(), msg.PhotoURLs()...) {
 			return
 		}
@@ -110,4 +127,10 @@ func run(log *slog.Logger) error {
 			Payload: msg.PayloadMap(), Photos: msg.PhotoURLs(),
 		})
 	})
+}
+
+// isAnalytics — кнопка «📈 Аналитика» или команда /аналитика.
+func isAnalytics(text string, payload map[string]string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	return payload["cmd"] == bot.AdmAnalytics || t == "/аналитика" || t == "аналитика"
 }

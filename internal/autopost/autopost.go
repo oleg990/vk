@@ -116,6 +116,35 @@ type Manager struct {
 	mu sync.Mutex
 }
 
+// withCTA добавляет в пост ссылку «написать в сообщения группы» (vk.me открывает диалог с ботом).
+// Ставится перед строкой с хэштегами; если ссылка уже есть в тексте — ничего не меняет.
+func (m *Manager) withCTA(text string) string {
+	if m.GroupID == 0 || strings.Contains(text, "vk.me/") {
+		return text
+	}
+	cta := fmt.Sprintf("👉 Написать мне и подобрать вариант: https://vk.me/club%d\nНажмите «Начать» — бот задаст несколько вопросов.", m.GroupID)
+	lines := strings.Split(strings.TrimRight(text, "\n "), "\n")
+	last := len(lines) - 1
+	if last >= 0 && isHashtagLine(lines[last]) {
+		head := strings.TrimRight(strings.Join(lines[:last], "\n"), "\n ")
+		return head + "\n\n" + cta + "\n\n" + lines[last]
+	}
+	return strings.Join(lines, "\n") + "\n\n" + cta
+}
+
+func isHashtagLine(line string) bool {
+	f := strings.Fields(line)
+	if len(f) == 0 {
+		return false
+	}
+	for _, w := range f {
+		if !strings.HasPrefix(w, "#") {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *Manager) now() time.Time {
 	if m.Now != nil {
 		return m.Now()
@@ -333,7 +362,7 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 	if len(images) > 1 {
 		slides = fmt.Sprintf(" · %d слайдов", len(images))
 	}
-	text := fmt.Sprintf("📝 Пост на одобрение · %s%s\n🕒 %s\n\n%s", st.ID, slides, m.fmtTime(st.PublishAt), st.Text)
+	text := fmt.Sprintf("📝 Пост на одобрение · %s%s\n🕒 %s\n\n%s", st.ID, slides, m.fmtTime(st.PublishAt), m.withCTA(st.Text))
 	if st.Fallback != "" {
 		text = "⚠️ Фото не сгенерировалось, обложка на фирменном фоне. «🔁 Другое фото» — попробовать ещё раз.\nПричина: " + st.Fallback + "\n\n" + text
 	}
@@ -628,11 +657,11 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 			publishDate = st.PublishAt.Unix()
 		}
 		att = stripAccessKeys(att)
-		postID, err := m.Wall.WallPost(ctx, m.GroupID, st.Text, att, publishDate)
+		postID, err := m.Wall.WallPost(ctx, m.GroupID, m.withCTA(st.Text), att, publishDate)
 		if err != nil && strings.Contains(err.Error(), "error 10:") {
 			// «Internal server error» у VK бывает разовым — пробуем ещё раз
 			time.Sleep(m.retryPause())
-			postID, err = m.Wall.WallPost(ctx, m.GroupID, st.Text, att, publishDate)
+			postID, err = m.Wall.WallPost(ctx, m.GroupID, m.withCTA(st.Text), att, publishDate)
 		}
 		if err != nil {
 			return "⚠️ VK не опубликовал: " + err.Error()

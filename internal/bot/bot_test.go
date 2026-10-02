@@ -47,7 +47,7 @@ func newBot(t *testing.T) (*Bot, *fakeSender, *storage.FileStore) {
 	t.Helper()
 	fs := &fakeSender{}
 	st := storage.NewMemory()
-	b, err := New(context.Background(), fs, st, Options{AdminID: admin, PrivacyURL: "https://example.ru/privacy", CallPhone: "+79205952888"})
+	b, err := New(context.Background(), fs, st, Options{AdminID: admin, PrivacyURL: "https://example.ru/privacy", CallPhone: "+79205952888", Now: func() time.Time { return time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,5 +369,45 @@ func TestAdminPanel(t *testing.T) {
 	b.Handle(ctx, Incoming{UserID: 555, Text: "Начать"})
 	if fs.last().kb.Buttons[0][0].Action.Label != btnBuy {
 		t.Fatal("clients keep the client menu")
+	}
+}
+
+func TestNightNotice(t *testing.T) {
+	b, fs, _ := newBot(t)
+	loc := time.FixedZone("MSK", 3*3600)
+	b.opt.Location = loc
+	night := time.Date(2026, 10, 2, 2, 30, 0, 0, loc)
+	b.opt.Now = func() time.Time { return night }
+
+	say(b, user, "Здравствуйте")
+	msgs := fs.to(user)
+	if len(msgs) < 2 || !strings.Contains(msgs[0].text, "с 9:00") {
+		t.Fatalf("expected night notice first, got %+v", msgs)
+	}
+	n := len(msgs)
+	say(b, user, "меню")
+	if got := len(fs.to(user)); got != n+1 {
+		t.Fatalf("notice must be sent once per night, messages %d -> %d", n, got)
+	}
+	if len(fs.to(admin)) != 0 {
+		t.Fatal("admin must not get the notice")
+	}
+	say(b, admin, "меню")
+	for _, m := range fs.to(admin) {
+		if strings.Contains(m.text, "с 9:00") {
+			t.Fatal("admin got night notice")
+		}
+	}
+}
+
+func TestNoNightNoticeDaytime(t *testing.T) {
+	b, fs, _ := newBot(t)
+	b.opt.Location = time.FixedZone("MSK", 3*3600)
+	b.opt.Now = func() time.Time { return time.Date(2026, 10, 2, 9, 0, 0, 0, b.opt.Location) }
+	say(b, user, "Здравствуйте")
+	for _, m := range fs.to(user) {
+		if strings.Contains(m.text, "с 9:00") {
+			t.Fatal("notice at 09:00 sharp must not be sent")
+		}
 	}
 }

@@ -27,6 +27,7 @@ const adminHelp = `Кнопки панели — внизу. Текстом мо
 /удалить_цену Район
 /очередь — посты автопостинга и их статус
 /срочно Текст — внеочередной пост (можно приложить фото)
+/аналитика — просмотры, реакции, охват, заявки и что публиковать (в понедельник в 10:00 приходит сам)
 /обновить — забрать новые посты из очереди сейчас
 /помощь — этот список`
 
@@ -217,11 +218,13 @@ const (
 	admQueue   = "adm_queue"
 	admRefresh = "adm_refresh"
 	admStats   = "adm_stats"
-	admLeads   = "adm_leads"
-	admSellers = "adm_sellers"
-	admBuyers  = "adm_buyers"
-	admClient  = "adm_client"
-	admHelp    = "adm_help"
+	// AdmAnalytics — кнопка «Аналитика»; её обрабатывает main (нужен доступ к статистике VK)
+	AdmAnalytics = "adm_analytics"
+	admLeads     = "adm_leads"
+	admSellers   = "adm_sellers"
+	admBuyers    = "adm_buyers"
+	admClient    = "adm_client"
+	admHelp      = "adm_help"
 )
 
 // AdminKeyboard — постоянная клавиатура Олега вместо клиентского меню.
@@ -232,6 +235,7 @@ func AdminKeyboard() *vk.Keyboard {
 		{btn("📋 Очередь постов", admQueue, vk.ColorPrimary), btn("🔄 Обновить", admRefresh, vk.ColorSecondary)},
 		{btn("📊 Статистика", admStats, vk.ColorPrimary), btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary)},
 		{btn("💰 Продавцы", admSellers, vk.ColorSecondary), btn("🏠 Покупатели", admBuyers, vk.ColorSecondary)},
+		{btn("📈 Аналитика", AdmAnalytics, vk.ColorPrimary)},
 		{btn("👀 Меню клиента", admClient, vk.ColorSecondary), btn("❓ Помощь", admHelp, vk.ColorSecondary)},
 	}}
 }
