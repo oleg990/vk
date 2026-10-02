@@ -29,7 +29,9 @@ ENV
 fi
 # env.add — новые/изменённые ключи: KEY=VALUE построчно; дописываем в .env и удаляем файл
 if [ -f "$SRC/env.add" ]; then
-  while IFS= read -r line; do
+  # "|| [ -n ...]" — не теряем последнюю строку без перевода строки; \r — файлы из Блокнота Windows
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
     case "$line" in ''|\#*) continue ;; esac
     key="${line%%=*}"
     grep -v "^${key}=" "$DIR/.env" > "$DIR/.env.tmp" || true
