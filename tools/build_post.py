@@ -192,9 +192,13 @@ def build(spec_path, preview=None):
     qp = os.path.join(os.path.dirname(base.rstrip("/")), "..", "queue.json")
     qp = os.path.normpath(qp)
     queue = json.load(open(qp, encoding="utf-8"))
-    entry = {"id": pid, "publish_at": spec["publish_at"], "slides": slides, "text": spec["text"]}
+    entry = {"id": pid, "slides": slides, "text": spec["text"]}
+    if spec.get("draft"):
+        entry["draft"] = True  # запас: дату назначит бот, когда Олег нажмёт «сделай пост»
+    else:
+        entry["publish_at"] = spec["publish_at"]
     queue = [q for q in queue if q["id"] != pid] + [entry]
-    queue.sort(key=lambda q: q["publish_at"])
+    queue.sort(key=lambda q: (q.get("draft", False), q.get("publish_at", ""), q["id"]))
     with open(qp, "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
         f.write("\n")

@@ -442,7 +442,7 @@ func (f *fakeWriter) Fire(_ context.Context, wish string) (string, error) {
 func TestMakePostCommand(t *testing.T) {
 	ctx := context.Background()
 	m, msg, _, _ := newManager(t)
-	if !m.HandleAdmin(ctx, 1, "сделай пост", nil) || !strings.Contains(msg.last().text, "не настроена") {
+	if !m.HandleAdmin(ctx, 1, "сделай пост", nil) || !strings.Contains(msg.last().text, "не настроен") {
 		t.Fatalf("no writer: %q", msg.last().text)
 	}
 	w := &fakeWriter{}
@@ -457,5 +457,40 @@ func TestMakePostCommand(t *testing.T) {
 	}
 	if m.HandleAdmin(ctx, 999, "сделай пост", nil) {
 		t.Fatal("non-admin must be ignored")
+	}
+}
+
+func TestDraftsReleasedInstantly(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, _ := newManager(t,
+		Item{ID: "p1", PublishAt: now.Add(72 * time.Hour), Text: "плановый"},
+		Item{ID: "d1", Text: "черновик 1", Draft: true},
+		Item{ID: "d2", Text: "черновик 2", Draft: true},
+		Item{ID: "d3", Text: "черновик 3", Draft: true},
+		Item{ID: "d4", Text: "черновик 4", Draft: true},
+	)
+	m.Tick(ctx)
+	if msg.previews() != 1 {
+		t.Fatalf("drafts must wait for the button, previews=%d", msg.previews())
+	}
+	w := &fakeWriter{}
+	m.Writer = w
+	m.HandleAdmin(ctx, 1, "сделай пост", nil)
+	if msg.previews() != 4 {
+		t.Fatalf("3 drafts must be sent right away, previews=%d", msg.previews())
+	}
+	if len(w.wishes) != 1 || w.wishes[0] != "" {
+		t.Fatalf("stock refill must be requested: %q", w.wishes)
+	}
+	states, _ := m.load(ctx)
+	// плановый пост — через 3 дня; черновики — через день после него, в 19:00
+	want := time.Date(2026, 10, 7, 19, 0, 0, 0, time.UTC)
+	if !states["d1"].PublishAt.Equal(want) || !states["d2"].PublishAt.Equal(want.AddDate(0, 0, 2)) {
+		t.Fatalf("slots: %v %v", states["d1"].PublishAt, states["d2"].PublishAt)
+	}
+	m.Tick(ctx) // синхронизация не сбивает назначенную дату
+	states, _ = m.load(ctx)
+	if !states["d1"].PublishAt.Equal(want) || states["d4"] != nil {
+		t.Fatalf("after sync: %v, d4=%v", states["d1"].PublishAt, states["d4"])
 	}
 }

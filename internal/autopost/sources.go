@@ -19,6 +19,7 @@ type Item struct {
 	ID        string    `json:"id"`
 	PublishAt time.Time `json:"publish_at"`
 	Text      string    `json:"text"`
+	Draft     bool      `json:"draft,omitempty"`  // запас: ждёт кнопки «сделай пост», дату назначит бот
 	Prompt    string    `json:"prompt"`           // запрос для FLUX на английском; пусто — фирменный фон
 	Query     string    `json:"query,omitempty"`  // запрос к фотостоку (англ., 2–5 слов) — пробуется первым
 	Overlay   string    `json:"overlay"`          // путь к PNG 1080×1350 относительно content/

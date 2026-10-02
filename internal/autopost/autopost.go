@@ -53,9 +53,10 @@ type State struct {
 	Attempts  int       `json:"attempts,omitempty"`
 	Error     string    `json:"error,omitempty"`
 	VKPostID  int64     `json:"vk_post_id,omitempty"`
-	Rerender  bool      `json:"rerender,omitempty"` // картинки надо сделать заново (правка поста, «🔁»)
-	Atts      []string  `json:"atts,omitempty"`     // фото уже загружены в группу — при публикации не грузим снова
-	Fallback  string    `json:"fallback,omitempty"` // почему обложка на фирменном фоне вместо фото
+	Rerender  bool      `json:"rerender,omitempty"`   // картинки надо сделать заново (правка поста, «🔁»)
+	Atts      []string  `json:"atts,omitempty"`       // фото уже загружены в группу — при публикации не грузим снова
+	Fallback  string    `json:"fallback,omitempty"`   // почему обложка на фирменном фоне вместо фото
+	FromDraft bool      `json:"from_draft,omitempty"` // выдан из запаса: дату назначил бот
 }
 
 // Messenger — личные сообщения Олегу (ключ группы).
@@ -179,6 +180,12 @@ func (m *Manager) Sync(ctx context.Context) error {
 			continue
 		}
 		st, ok := states[it.ID]
+		if it.Draft && !ok {
+			continue // лежит в запасе до кнопки «сделай пост»
+		}
+		if ok && st.FromDraft {
+			it.PublishAt = st.PublishAt // дату выданному из запаса поста назначил бот
+		}
 		if !ok {
 			states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: it.PublishAt, Text: it.Text, Prompt: it.Prompt, Query: it.Query, Overlay: it.Overlay, Slides: it.Slides}
 			continue
@@ -734,8 +741,32 @@ func isMakePost(text string) bool {
 
 // makePosts запускает Claude: он соберёт факты с сайтов застройщиков и добавит посты в очередь.
 func (m *Manager) makePosts(ctx context.Context, text string) string {
+	wish := wishOf(text)
+	if wish == "" {
+		// без пожеланий — сразу выдаём готовые посты из запаса, запас пополняем в фоне
+		n, left, err := m.releaseDrafts(ctx, 3)
+		if err != nil {
+			m.Log.Error("autopost: запас", "err", err)
+		}
+		if n > 0 {
+			if m.UploadGap > 0 {
+				go m.Process(context.WithoutCancel(ctx)) // на сервере — в фоне, чтобы бот не ждал загрузок
+			} else {
+				m.Process(ctx)
+			}
+			msg := fmt.Sprintf("🚀 Беру %s из запаса — превью придут сюда через 1–2 минуты.", plural(n, "готовый пост", "готовых поста", "готовых постов"))
+			if m.Writer != nil && left < 3 {
+				if _, err := m.Writer.Fire(ctx, ""); err != nil {
+					m.Log.Error("autopost: пополнение запаса", "err", err)
+				} else {
+					msg += "\n📦 Пополняю запас в фоне."
+				}
+			}
+			return msg
+		}
+	}
 	if m.Writer == nil {
-		return "⚠️ Команда пока не настроена: на сервере нет ROUTINE_ID и ROUTINE_TOKEN."
+		return "⚠️ Запас пуст, а запуск Claude не настроен: на сервере нет ROUTINE_ID и ROUTINE_TOKEN."
 	}
 	m.mu.Lock()
 	if since := m.now().Sub(m.lastFire); !m.lastFire.IsZero() && since < 15*time.Minute {
@@ -744,25 +775,98 @@ func (m *Manager) makePosts(ctx context.Context, text string) string {
 	}
 	m.lastFire = m.now()
 	m.mu.Unlock()
-	t := strings.TrimSpace(text)
-	low := strings.ToLower(t)
-	wish := ""
-	for _, p := range makePostPrefixes {
-		if strings.HasPrefix(low, p) {
-			wish = strings.TrimSpace(strings.TrimLeft(string([]rune(t)[len([]rune(p)):]), " ,.:-—"))
-			break
-		}
+	fire := wish
+	if fire == "" {
+		fire = "Запас пуст, Олег ждёт: сделай 3 поста сразу в очередь (не черновики), и ещё 3 черновика в запас."
 	}
-	if _, err := m.Writer.Fire(ctx, wish); err != nil {
+	if _, err := m.Writer.Fire(ctx, fire); err != nil {
 		m.mu.Lock()
 		m.lastFire = time.Time{}
 		m.mu.Unlock()
 		m.Log.Error("autopost: запуск подготовки постов", "err", err)
 		return "⚠️ Не получилось запустить подготовку постов: " + err.Error()
 	}
-	msg := "🛠 Принял! Захожу на сайты застройщиков, собираю цены, сроки и акции и делаю 3–5 постов в разных стилях."
+	msg := "🛠 Принял! Захожу на сайты застройщиков, собираю цены, сроки и акции и делаю посты в разных стилях."
 	if wish != "" {
 		msg += "\nПожелание: " + wish
+	} else {
+		msg += "\nЗапас был пуст — заодно положу новые посты в запас, в следующий раз будут сразу."
 	}
 	return msg + "\nПревью придут сюда на одобрение примерно через 15–30 минут."
+}
+
+func wishOf(text string) string {
+	t := strings.TrimSpace(text)
+	low := strings.ToLower(t)
+	for _, p := range makePostPrefixes {
+		if strings.HasPrefix(low, p) {
+			return strings.TrimSpace(strings.TrimLeft(string([]rune(t)[len([]rune(p)):]), " ,.:-—!"))
+		}
+	}
+	return ""
+}
+
+func plural(n int, one, few, many string) string {
+	w := many
+	switch {
+	case n%10 == 1 && n%100 != 11:
+		w = one
+	case n%10 >= 2 && n%10 <= 4 && (n%100 < 10 || n%100 >= 20):
+		w = few
+	}
+	return fmt.Sprintf("%d %s", n, w)
+}
+
+// releaseDrafts выдаёт до n постов из запаса: назначает им ближайшие свободные даты (через день, 19:00)
+// и ставит в работу. Возвращает, сколько выдано и сколько осталось в запасе.
+func (m *Manager) releaseDrafts(ctx context.Context, n int) (int, int, error) {
+	items, err := m.Content.Queue(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	states, err := m.load(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	var drafts []Item
+	for _, it := range items {
+		if _, used := states[it.ID]; it.Draft && !used && strings.TrimSpace(it.Text) != "" {
+			drafts = append(drafts, it)
+		}
+	}
+	sort.Slice(drafts, func(i, j int) bool { return drafts[i].ID < drafts[j].ID })
+	slot := m.nextSlot(states)
+	given := 0
+	for _, it := range drafts {
+		if given == n {
+			break
+		}
+		states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: slot, Text: it.Text, Prompt: it.Prompt, Query: it.Query,
+			Overlay: it.Overlay, Slides: it.Slides, FromDraft: true}
+		slot = slot.AddDate(0, 0, 2)
+		given++
+	}
+	if given == 0 {
+		return 0, len(drafts), nil
+	}
+	return given, len(drafts) - given, m.save(ctx, states)
+}
+
+// nextSlot — первая свободная дата: через день после последнего запланированного поста, в 19:00.
+func (m *Manager) nextSlot(states map[string]*State) time.Time {
+	loc := m.loc()
+	now := m.now().In(loc)
+	last := time.Time{}
+	for _, st := range states {
+		if st.Status != StatusRejected && st.PublishAt.After(last) {
+			last = st.PublishAt
+		}
+	}
+	if last.After(now) {
+		l := last.In(loc)
+		return time.Date(l.Year(), l.Month(), l.Day()+2, 19, 0, 0, 0, loc)
+	}
+	return time.Date(now.Year(), now.Month(), now.Day()+1, 19, 0, 0, 0, loc)
 }
