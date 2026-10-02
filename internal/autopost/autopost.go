@@ -325,18 +325,16 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 	return m.Msg.SendAttachment(ctx, m.AdminID, text, strings.Join(atts, ","), m.previewButtons(st))
 }
 
-// uploadPreview грузит фото в альбом группы ключом пользователя (тогда при публикации его не нужно
-// грузить снова), а без него — в личные сообщения ключом группы.
+// uploadPreview: превью — фото в личные сообщения ключом сообщества (так VK их точно показывает);
+// если ключу сообщества не хватает прав — загрузка в альбом группы ключом пользователя.
 func (m *Manager) uploadPreview(ctx context.Context, img []byte) (att string, wall bool, err error) {
-	if m.Wall != nil {
-		att, err = m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
-		if err == nil {
-			return att, true, nil
-		}
-		m.Log.Warn("autopost: фото в группу не загрузилось, пробую через сообщения", "err", err)
-	}
 	att, err = m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
-	return att, false, err
+	if err == nil || m.Wall == nil {
+		return att, false, err
+	}
+	m.Log.Warn("autopost: фото в сообщения не загрузилось, пробую через группу", "err", err)
+	att, err = m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
+	return att, err == nil, err
 }
 
 func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) ([]byte, error) {
@@ -606,7 +604,13 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 		if !immediately && st.PublishAt.After(m.now().Add(10*time.Minute)) {
 			publishDate = st.PublishAt.Unix()
 		}
+		att = stripAccessKeys(att)
 		postID, err := m.Wall.WallPost(ctx, m.GroupID, st.Text, att, publishDate)
+		if err != nil && strings.Contains(err.Error(), "error 10:") {
+			// «Internal server error» у VK бывает разовым — пробуем ещё раз
+			time.Sleep(m.retryPause())
+			postID, err = m.Wall.WallPost(ctx, m.GroupID, st.Text, att, publishDate)
+		}
 		if err != nil {
 			return "⚠️ VK не опубликовал: " + err.Error()
 		}
@@ -686,4 +690,22 @@ func (m *Manager) retryErrors(ctx context.Context) {
 	if err := m.save(ctx, states); err != nil {
 		m.Log.Error("autopost save", "err", err)
 	}
+}
+
+// stripAccessKeys: на стене свои фото группы прикладываются без ключа доступа (photo-1_2_key → photo-1_2).
+func stripAccessKeys(att string) string {
+	parts := strings.Split(att, ",")
+	for i, p := range parts {
+		if f := strings.Split(p, "_"); len(f) > 2 {
+			parts[i] = f[0] + "_" + f[1]
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+func (m *Manager) retryPause() time.Duration {
+	if m.UploadGap > 0 {
+		return m.UploadGap
+	}
+	return 0
 }

@@ -36,11 +36,15 @@ type sentMsg struct {
 }
 
 type fakeMsg struct {
-	sent    []sentMsg
-	uploads int
+	sent       []sentMsg
+	uploads    int
+	failUpload bool // как ключ сообщества без права «фото»
 }
 
 func (f *fakeMsg) UploadMessagePhoto(context.Context, int64, []byte) (string, error) {
+	if f.failUpload {
+		return "", errors.New("vk api error 15: Access denied")
+	}
 	f.uploads++
 	return "photo1_100", nil
 }
@@ -137,7 +141,7 @@ func TestPreviewApproveSchedules(t *testing.T) {
 		t.Fatalf("gen=%d uploads=%d", gen.calls, msg.previews())
 	}
 	pv := msg.last()
-	if !strings.Contains(pv.text, "Текст поста") || pv.att != "photo-1_201" || !pv.kb.Inline {
+	if !strings.Contains(pv.text, "Текст поста") || pv.att != "photo1_100" || !pv.kb.Inline {
 		t.Fatalf("preview = %+v", pv)
 	}
 	// повторный цикл не шлёт превью снова
@@ -286,8 +290,8 @@ func TestCarouselSlides(t *testing.T) {
 	}})
 	m.Tick(ctx)
 	pv := msg.last()
-	if gen.calls != 1 || wall.uploads != 3 || len(strings.Split(pv.att, ",")) != 3 || !strings.Contains(pv.text, "3 слайдов") {
-		t.Fatalf("gen=%d uploads=%d preview=%+v", gen.calls, wall.uploads, pv)
+	if gen.calls != 1 || msg.uploads != 3 || wall.uploads != 0 || len(strings.Split(pv.att, ",")) != 3 || !strings.Contains(pv.text, "3 слайдов") {
+		t.Fatalf("gen=%d uploads=%d preview=%+v", gen.calls, msg.uploads, pv)
 	}
 	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ По расписанию"))
 	if wall.posts != 1 || wall.att != "photo-1_201,photo-1_202,photo-1_203" {
@@ -315,6 +319,7 @@ func TestNoHFTokenWaitsWithoutErrors(t *testing.T) {
 func TestPreviewViaGroupAlbumReusedOnApprove(t *testing.T) {
 	ctx := context.Background()
 	m, msg, wall, _ := newManager(t, Item{ID: "p1", PublishAt: now.Add(48 * time.Hour), Text: "x", Prompt: "room"})
+	msg.failUpload = true
 	m.Tick(ctx)
 	if msg.uploads != 0 || wall.uploads != 1 || msg.last().att != "photo-1_201" {
 		t.Fatalf("msg uploads=%d wall uploads=%d att=%q", msg.uploads, wall.uploads, msg.last().att)
@@ -404,6 +409,7 @@ func TestStockPhotoFirstThenGenerator(t *testing.T) {
 func TestStartupResendsPreviewsWithoutAccessKey(t *testing.T) {
 	ctx := context.Background()
 	m, msg, _, gen := newManager(t, Item{ID: "p1", PublishAt: now.Add(48 * time.Hour), Text: "x", Prompt: "room"})
+	msg.failUpload = true
 	m.Tick(ctx) // превью ушло с photo-1_201 (без ключа)
 	m.retryErrors(ctx)
 	m.Tick(ctx)
@@ -414,5 +420,11 @@ func TestStartupResendsPreviewsWithoutAccessKey(t *testing.T) {
 	m.Tick(ctx)
 	if msg.previews() != 2 {
 		t.Fatalf("resent twice: %d", msg.previews())
+	}
+}
+
+func TestStripAccessKeys(t *testing.T) {
+	if got := stripAccessKeys("photo-1_2_abc,photo-1_3"); got != "photo-1_2,photo-1_3" {
+		t.Fatal(got)
 	}
 }
