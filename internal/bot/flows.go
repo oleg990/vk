@@ -40,12 +40,10 @@ type flow struct {
 }
 
 const (
-	flowBuy          = "buy"
-	flowSell         = "sell"
-	flowMortgage     = "mortgage"
-	flowMortgageRes  = "mortgage_result" // показан расчёт, ждём «Хочу подбор»
-	flowMortgageLead = "mortgage_lead"
-	flowContact      = "contact"
+	flowBuy      = "buy"
+	flowSell     = "sell"
+	flowMortgage = "mortgage"
+	flowContact  = "contact"
 
 	maxPhotos = 10
 )
@@ -54,24 +52,23 @@ const (
 const (
 	btnBuy      = "🏠 Подобрать квартиру"
 	btnSell     = "💰 Продать недвижимость"
-	btnMortgage = "🧮 Рассчитать ипотеку"
+	btnMortgage = "💳 Консультация по ипотеке"
 	btnContact  = "📞 Связаться с Олегом"
 
-	btnBack     = "⬅️ Назад"
-	btnMenu     = "❌ В меню"
-	btnSkip     = "Пропустить"
-	btnDone     = "✅ Готово"
-	btnAgree    = "✅ Согласен"
-	btnRefuse   = "Отказаться"
-	btnOwnRate  = "Своя ставка"
-	btnWantPick = "🏠 Хочу подбор под этот платёж"
-	btnCall     = "📞 Позвонить Олегу"
+	btnBack    = "⬅️ Назад"
+	btnMenu    = "❌ В меню"
+	btnSkip    = "Пропустить"
+	btnDone    = "✅ Готово"
+	btnAgree   = "✅ Согласен"
+	btnRefuse  = "Отказаться"
+	btnOwnRate = "Своя ставка"
+	btnCall    = "📞 Позвонить Олегу"
 )
 
 var leadKindTitle = map[string]string{
 	flowBuy:      "ПОКУПАТЕЛЬ",
 	flowSell:     "ПРОДАВЕЦ",
-	flowMortgage: "ИПОТЕКА",
+	flowMortgage: "ИПОТЕКА (консультация)",
 	flowContact:  "ОБРАТНЫЙ ЗВОНОК",
 }
 
@@ -155,26 +152,15 @@ func buildFlows() map[string]*flow {
 			kind: kindChoice, options: []string{"Срочно, до месяца", "В течение 1–3 месяцев", "Не спешу"}},
 	}, contactSteps()...)}
 
-	hasRates := func(_ map[string]string, b *Bot) bool { return len(b.rateList()) > 0 }
-	mortgage := &flow{name: flowMortgage, steps: []step{
-		{key: "price", label: "Стоимость", question: "Сколько стоит квартира? Например: 5 500 000 или 5,5 млн.", kind: kindMoney},
-		{key: "down", label: "Первоначальный взнос", question: "Первоначальный взнос? В процентах (20%) или суммой (1,2 млн). Без взноса — 0.", kind: kindDown},
-		{key: "years", label: "Срок", question: "На какой срок?", kind: kindYears,
-			options: []string{"10 лет", "15 лет", "20 лет", "25 лет", "30 лет"}},
-		{key: "program", label: "Программа", question: "Выберите программу:", kind: kindRateChoice, when: hasRates},
-		{key: "rate", label: "Ставка, %", question: "Какая ставка, % годовых? Выберите или напишите свою, например 12,5.", kind: kindRate,
-			options: []string{"6%", "12%", "18%", "20%"},
-			when:    func(a map[string]string, b *Bot) bool { return !hasRates(a, b) || a["program"] == btnOwnRate }},
-	}}
-
-	mortgageLead := &flow{name: flowMortgageLead, leadKind: flowMortgage, answerFlow: flowMortgage, steps: contactSteps()}
+	mortgage := &flow{name: flowMortgage, leadKind: flowMortgage, steps: append([]step{
+		{key: "question", label: "Что интересует", question: "Коротко опишите, что хотите узнать по ипотеке (семейная, вторичка, новостройка, взнос) — или нажмите «Пропустить».", kind: kindText, optional: true},
+	}, contactStepsCall(true)...)}
 
 	contact := &flow{name: flowContact, leadKind: flowContact, steps: append([]step{
 		{key: "question", label: "Вопрос", question: "Коротко опишите вопрос — или нажмите «Пропустить».", kind: kindText, optional: true},
 	}, contactStepsCall(true)...)}
 
 	return map[string]*flow{
-		flowBuy: buy, flowSell: sell, flowMortgage: mortgage,
-		flowMortgageLead: mortgageLead, flowContact: contact,
+		flowBuy: buy, flowSell: sell, flowMortgage: mortgage, flowContact: contact,
 	}
 }

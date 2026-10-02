@@ -169,45 +169,21 @@ func TestInvalidChoiceReasks(t *testing.T) {
 	}
 }
 
-func TestMortgageWithoutRatesThenLead(t *testing.T) {
+func TestMortgageConsultationLead(t *testing.T) {
 	b, fs, st := newBot(t)
-	for _, msg := range []string{btnMortgage, "6 млн", "20%", "20 лет", "12"} {
+	for _, msg := range []string{btnMortgage, "Семейная ипотека на вторичку", btnAgree, "+79001112233"} {
 		say(b, user, msg)
 	}
-	res := fs.last().text
-	for _, want := range []string{"Кредит: 4 800 000 ₽", "20 лет", "Платёж: 52 852 ₽"} {
-		if !strings.Contains(res, want) {
-			t.Fatalf("result missing %q:\n%s", want, res)
-		}
-	}
-	say(b, user, btnWantPick)
-	say(b, user, btnAgree)
-	say(b, user, "+79001112233")
 	leads, _ := st.ListLeads(context.Background(), flowMortgage, time.Time{})
 	if len(leads) != 1 {
 		t.Fatalf("mortgage leads = %d", len(leads))
 	}
 	am := fs.to(admin)[0].text
-	if !strings.Contains(am, "ИПОТЕКА") || !strings.Contains(am, "Платёж в месяц: 52 852 ₽") || !strings.Contains(am, "Стоимость: 6 000 000 ₽") {
+	if !strings.Contains(am, "ИПОТЕКА") || !strings.Contains(am, "Семейная ипотека на вторичку") {
 		t.Fatalf("admin msg:\n%s", am)
 	}
-}
-
-func TestMortgageWithConfiguredRate(t *testing.T) {
-	b, fs, _ := newBot(t)
-	say(b, admin, "/ставка Семейная 6")
-	if !strings.Contains(fs.last().text, "Сохранено: Семейная — 6%") {
-		t.Fatalf("admin reply %q", fs.last().text)
-	}
-	for _, msg := range []string{btnMortgage, "5 000 000", "1 млн", "30"} {
-		say(b, user, msg)
-	}
-	if !hasButton(fs.last().kb, "Семейная — 6%") || !hasButton(fs.last().kb, btnOwnRate) {
-		t.Fatalf("rate buttons missing: %+v", fs.last().kb)
-	}
-	say(b, user, "Семейная — 6%")
-	if !strings.Contains(fs.last().text, "(Семейная)") || !strings.Contains(fs.last().text, "под 6%") {
-		t.Fatalf("result: %s", fs.last().text)
+	if !strings.Contains(fs.last().text, "по ипотеке") {
+		t.Fatalf("thanks: %q", fs.last().text)
 	}
 }
 
@@ -289,39 +265,6 @@ func TestStaryOskolSkipsMarket(t *testing.T) {
 	say(b, user, btnBack)
 	if !strings.Contains(fs.last().text, "В каком городе") {
 		t.Fatalf("back should skip market, got %q", fs.last().text)
-	}
-}
-
-func TestMortgageRejectsNegative(t *testing.T) {
-	b, fs, _ := newBot(t)
-	say(b, user, btnMortgage)
-	say(b, user, "-5000000")
-	if !strings.Contains(fs.last().text, "Не понял сумму") {
-		t.Fatalf("negative price accepted: %q", fs.last().text)
-	}
-	say(b, user, "5 млн")
-	say(b, user, "-20%")
-	if !strings.Contains(fs.last().text, "Взнос должен быть") {
-		t.Fatalf("negative down accepted: %q", fs.last().text)
-	}
-	say(b, user, "20%")
-	say(b, user, "-10")
-	if !strings.Contains(fs.last().text, "Выберите срок") {
-		t.Fatalf("negative years accepted: %q", fs.last().text)
-	}
-	say(b, user, "20 лет")
-	for _, r := range []string{"6%", "12%", "18%", "20%"} {
-		if !hasButton(fs.last().kb, r) {
-			t.Fatalf("rate button %s missing", r)
-		}
-	}
-	say(b, user, "-12")
-	if !strings.Contains(fs.last().text, "ставку числом") {
-		t.Fatalf("negative rate accepted: %q", fs.last().text)
-	}
-	say(b, user, "18%")
-	if !strings.Contains(fs.last().text, "под 18%") {
-		t.Fatalf("rate button not applied: %q", fs.last().text)
 	}
 }
 

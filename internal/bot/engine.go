@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"realty-bot/internal/mortgage"
 	"realty-bot/internal/storage"
 	"realty-bot/internal/vk"
 )
@@ -262,16 +261,6 @@ func truncate(s string, n int) string {
 }
 
 func (b *Bot) advance(ctx context.Context, s *storage.Session, in Incoming, text string) {
-	if s.Flow == flowMortgageRes {
-		if text == btnWantPick || strings.Contains(normalize(text), "подбор") {
-			b.startFlow(ctx, s.UserID, flowMortgageLead, s.Answers)
-			return
-		}
-		b.dropSession(ctx, s.UserID)
-		b.sendMenu(ctx, s.UserID, "Выберите, что вас интересует 👇")
-		return
-	}
-
 	f, ok := b.flows[s.Flow]
 	if !ok || s.Step < 0 || s.Step >= len(f.steps) {
 		b.dropSession(ctx, s.UserID)
@@ -331,24 +320,12 @@ func (b *Bot) advance(ctx context.Context, s *storage.Session, in Incoming, text
 }
 
 func (b *Bot) finish(ctx context.Context, f *flow, s *storage.Session) {
-	if f.name == flowMortgage {
-		b.finishMortgage(ctx, s)
-		return
-	}
 	if f.leadKind == "" {
 		b.dropSession(ctx, s.UserID)
 		b.sendMenu(ctx, s.UserID, "Готово!")
 		return
 	}
 	b.finishLead(ctx, f, s)
-}
-
-func calcFromAnswers(a map[string]string) (mortgage.Result, error) {
-	price, _ := strconv.ParseFloat(a["price"], 64)
-	down, _ := strconv.ParseFloat(a["down"], 64)
-	rate, _ := strconv.ParseFloat(a["rate"], 64)
-	years, _ := strconv.Atoi(a["years"])
-	return mortgage.Calculate(price, down, rate, years)
 }
 
 func yearsWord(n int) string {
@@ -361,43 +338,6 @@ func yearsWord(n int) string {
 		return "года"
 	}
 	return "лет"
-}
-
-func (b *Bot) finishMortgage(ctx context.Context, s *storage.Session) {
-	r, err := calcFromAnswers(s.Answers)
-	if err != nil {
-		b.dropSession(ctx, s.UserID)
-		b.sendMenu(ctx, s.UserID, "Не получилось посчитать: "+err.Error()+". Попробуйте ещё раз.")
-		return
-	}
-	s.Answers["monthly"] = strconv.FormatFloat(math.Round(r.Monthly), 'f', 0, 64)
-	s.Flow, s.Step = flowMortgageRes, 0
-	b.save(ctx, s)
-
-	program := ""
-	if p := s.Answers["program"]; p != "" && p != btnOwnRate {
-		program = " (" + p + ")"
-	}
-	text := fmt.Sprintf(`🧮 Расчёт ипотеки%s
-
-Стоимость: %s
-Взнос: %s
-Кредит: %s на %d %s под %s%%
-
-💳 Платёж: %s в месяц
-Переплата за весь срок: %s
-Ориентировочный доход для одобрения: от %s в месяц
-
-Расчёт примерный: точные условия зависят от банка. Хотите, Олег подберёт квартиры под этот платёж?`,
-		program, FormatRub(r.Price), FormatRub(r.Down), FormatRub(r.Loan), r.Years, yearsWord(r.Years),
-		FormatNumber(r.Rate), FormatRub(r.Monthly), FormatRub(r.Overpay), FormatRub(r.IncomeNeeded))
-
-	kb := &vk.Keyboard{Buttons: [][]vk.Button{
-		{vk.TextButton(btnWantPick, "", vk.ColorPositive)},
-		{vk.TextButton(btnMortgage, payload(flowMortgage), vk.ColorSecondary)},
-		{vk.TextButton(btnMenu, payload("menu"), vk.ColorNegative)},
-	}}
-	b.reply(ctx, s.UserID, text, kb)
 }
 
 // displayValue — значение ответа для заявки.
@@ -439,10 +379,6 @@ func (b *Bot) leadAnswers(f *flow, a map[string]string) []storage.Answer {
 			continue
 		}
 		out = append(out, storage.Answer{Key: st.key, Label: st.label, Value: displayValue(st, v)})
-	}
-	if m := a["monthly"]; m != "" && f.leadKind == flowMortgage {
-		v, _ := strconv.ParseFloat(m, 64)
-		out = append(out, storage.Answer{Key: "monthly", Label: "Платёж в месяц", Value: FormatRub(v)})
 	}
 	return out
 }
@@ -505,7 +441,7 @@ func (b *Bot) finishLead(ctx context.Context, f *flow, s *storage.Session) {
 			thanks += "\n\n📊 Предварительная оценка: " + est + ".\nТочную цену Олег назовёт после осмотра."
 		}
 	case flowMortgage:
-		thanks = "Спасибо! Олег подберёт варианты под ваш платёж и свяжется с вами."
+		thanks = "Спасибо! Олег свяжется с вами и проконсультирует по ипотеке."
 	default:
 		thanks = "Спасибо! Олег свяжется с вами в ближайшее время."
 	}
