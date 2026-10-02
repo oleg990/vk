@@ -122,15 +122,21 @@ func truncate(s string, n int) string {
 }
 
 type savedPhoto struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
+	ID        int64  `json:"id"`
+	OwnerID   int64  `json:"owner_id"`
+	AccessKey string `json:"access_key"`
 }
 
 func attachmentOf(ph []savedPhoto) (string, error) {
 	if len(ph) == 0 {
 		return "", fmt.Errorf("VK не вернул сохранённое фото")
 	}
-	return fmt.Sprintf("photo%d_%d", ph[0].OwnerID, ph[0].ID), nil
+	att := fmt.Sprintf("photo%d_%d", ph[0].OwnerID, ph[0].ID)
+	if ph[0].AccessKey != "" {
+		// фото ещё не опубликовано на стене — без ключа доступа VK не покажет его в сообщении
+		att += "_" + ph[0].AccessKey
+	}
+	return att, nil
 }
 
 // UploadMessagePhoto загружает фото для личного сообщения (работает с ключом группы).

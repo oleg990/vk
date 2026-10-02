@@ -83,3 +83,10 @@ func TestAPIErrorSurfaced(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestAttachmentWithAccessKey(t *testing.T) {
+	att, err := attachmentOf([]savedPhoto{{ID: 5, OwnerID: -7, AccessKey: "abc"}})
+	if err != nil || att != "photo-7_5_abc" {
+		t.Fatalf("att=%q err=%v", att, err)
+	}
+}
