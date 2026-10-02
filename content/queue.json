@@ -183,6 +183,60 @@
     "publish_at": "2026-10-25T19:00:00+03:00"
   },
   {
+    "id": "2026-10-27-instep-zhk",
+    "slides": [
+      {
+        "query": "modern residential complex park",
+        "prompt": "Photorealistic modern residential complex with a green boulevard in a Russian city, soft daylight, wide shot, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-27-instep-zhk/01.png?v=8d3f256f"
+      },
+      {
+        "overlay": "posts/2026-10-27-instep-zhk/02.png?v=2cfb87d3"
+      },
+      {
+        "overlay": "posts/2026-10-27-instep-zhk/03.png?v=3fe16ada"
+      }
+    ],
+    "text": "Воронежский застройщик ИНСТЕП (в топ-25 застройщиков России по данным сайта) — какие у него проекты сейчас 👇\n\n🏢 ЭНКО. Крона Парк, ул. Ломоносова — от 5,1 млн ₽\n🏢 ЭНКО. Крона Дом, Московский пр-т — от 4,5 млн ₽\n🏡 ИнСтеп.Бабяково, Новая Усмань — от 2,9 млн ₽\n🏢 ИнСтеп.Краснознамённая, ул. Краснознамённая, 72 — от 5,7 млн ₽\n\nНа сайте — семейная ипотека 4%, ипотека 13,9%, рассрочка, отделка «Комфорт» и «Бизнес».\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ИНСТЕП #ЭНКО",
+    "publish_at": "2026-10-27T19:00:00+03:00"
+  },
+  {
+    "id": "2026-10-29-razvitie-gotovye",
+    "slides": [
+      {
+        "query": "keys new apartment",
+        "prompt": "Photorealistic ready-to-move-in residential building in a Russian city, sunny day, clean facade and landscaped yard, wide shot, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-29-razvitie-gotovye/01.png?v=622d0abe"
+      },
+      {
+        "overlay": "posts/2026-10-29-razvitie-gotovye/02.png?v=bd1f9528"
+      },
+      {
+        "overlay": "posts/2026-10-29-razvitie-gotovye/03.png?v=d65c69bc"
+      }
+    ],
+    "text": "Не хотите ждать стройку? У ГК «Развитие» в Воронеже есть готовые дома — ключи можно получить сразу 🔑\n\n🏠 Чехов — от 3,5 млн ₽, скидка до 10%\n🏠 Галактика 2|3 — от 4,8 млн ₽, скидка до 10%\n🏠 Маяковский — от 9,3 млн ₽\n\nНа сайте также указаны ипотека от 6% и рассрочка до 18 месяцев.\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ГКРазвитие #готовоежильё",
+    "publish_at": "2026-10-29T19:00:00+03:00"
+  },
+  {
+    "id": "2026-10-31-razvitie-do4",
+    "slides": [
+      {
+        "query": "apartment building courtyard autumn",
+        "prompt": "Photorealistic new residential buildings in a Russian city in autumn, green courtyard, soft daylight, wide shot, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-31-razvitie-do4/01.png?v=1eec2600"
+      },
+      {
+        "overlay": "posts/2026-10-31-razvitie-do4/02.png?v=185262be"
+      },
+      {
+        "overlay": "posts/2026-10-31-razvitie-do4/03.png?v=c1586896"
+      }
+    ],
+    "text": "Ищете новостройку в Воронеже недорого? Вот что у ГК «Развитие» начинается от 4 млн ₽ и ниже 👇\n\n🏙 Мармелад — от 2,7 млн ₽, скидка до 15%, сдача IV кв. 2029\n🏙 Авиапарк — от 3 млн ₽, скидка до 10%, IV кв. 2028\n🏙 Домино — от 3,8 млн ₽, скидка до 12%, IV кв. 2027\n🏙 Квартал 45 — от 4 млн ₽, скидка до 10%, II кв. 2028\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ГКРазвитие #ипотека",
+    "publish_at": "2026-10-31T19:00:00+03:00"
+  },
+  {
     "id": "2026-10-02-draft-a101-msk",
     "slides": [
       {
@@ -234,6 +288,60 @@
       }
     ],
     "text": "Ищете новостройку в Воронеже от крупного застройщика? У ДСК — девять жилых комплексов в разных районах города 🏡\n\nСреди них «Городские истории» на пр-те Труда, «Яблоневые сады», «Ласточкино» на Острогожской, «Парад Планет» на ул. Ворошилова и другие. На сайте указаны ипотека от 2,5%, семейная и военная ипотека, материнский капитал, а также скидки до 14% в отдельных комплексах.\n\nПодберу ЖК под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nУсловия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ДСК #ипотека",
+    "draft": true
+  },
+  {
+    "id": "2026-10-02-draft-instep-ipoteka",
+    "slides": [
+      {
+        "query": "family mortgage keys home",
+        "prompt": "Photorealistic family house keys on a wooden table with a small house model, soft daylight, shallow depth of field, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-02-draft-instep-ipoteka/01.png?v=58fea2cd"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-instep-ipoteka/02.png?v=10b64643"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-instep-ipoteka/03.png?v=06e1d3a1"
+      }
+    ],
+    "text": "Как купить квартиру у воронежского застройщика ИНСТЕП? Сайт называет несколько вариантов 👇\n\n💳 семейная ипотека — 4%\n💳 ипотека — 13,9%\n💳 IT-ипотека и военная ипотека\n📆 рассрочка\n🔁 обмен вашей квартиры (trade-in)\n\nСтарт цен — от 2,9 млн ₽ (ИнСтеп.Бабяково, Новая Усмань).\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ИНСТЕП #ипотека",
+    "draft": true
+  },
+  {
+    "id": "2026-10-02-draft-razvitie-centr",
+    "slides": [
+      {
+        "query": "city center apartment building",
+        "prompt": "Photorealistic modern premium residential building in a city center, evening light, wide shot, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-02-draft-razvitie-centr/01.png?v=a3dbd129"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-razvitie-centr/02.png?v=6d3939f9"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-razvitie-centr/03.png?v=cde63f77"
+      }
+    ],
+    "text": "Хотите жить в центре Воронежа? У ГК «Развитие» есть проекты в Центральном районе 👇\n\n🌆 Метрополь — от 4,3 млн ₽, скидка до 12%, сдача III кв. 2026\n🌆 Эклипс — от 7,6 млн ₽, скидка до 8%, сдача III кв. 2030\n🌆 Квартал 45 (Коминтерновский р-н) — от 4 млн ₽, до 10%, II кв. 2028\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ГКРазвитие #Центр",
+    "draft": true
+  },
+  {
+    "id": "2026-10-02-draft-razvitie-usloviya",
+    "slides": [
+      {
+        "query": "keys apartment purchase",
+        "prompt": "Photorealistic apartment keys and a calculator on a light desk, soft window light, shallow depth of field, no people, no text, no logos, architectural photography, natural colors",
+        "overlay": "posts/2026-10-02-draft-razvitie-usloviya/01.png?v=8d41fa6f"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-razvitie-usloviya/02.png?v=fe771864"
+      },
+      {
+        "overlay": "posts/2026-10-02-draft-razvitie-usloviya/03.png?v=6f5d222d"
+      }
+    ],
+    "text": "Какие условия сейчас у ГК «Развитие» в Воронеже? Коротко с сайта 👇\n\n💳 ипотека от 6%\n📆 рассрочка 0–18 месяцев\n🎁 скидки — до 20% на сайте, в зависимости от проекта\n🛠 отделка в подарок в отдельных ЖК\n👨‍👩‍👧 маткапитал и военная ипотека\n\nУсловия отличаются по каждому ЖК — подскажу, где выгоднее.\n\nПодберу вариант под ваш бюджет и посчитаю платёж. Напишите в сообщения группы → «🏠 Подобрать квартиру» или «🧮 Рассчитать ипотеку».\n\nЦены и условия — по данным сайта застройщика на 02.10.2026, могут измениться.\n\n#новостройки #Воронеж #ГКРазвитие #рассрочка",
     "draft": true
   }
 ]
