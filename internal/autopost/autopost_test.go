@@ -71,12 +71,16 @@ func (f *fakeWall) WallPost(_ context.Context, _ int64, msg, att string, pd int6
 }
 
 type fakeGen struct {
-	calls int
-	fail  bool
+	calls   int
+	fail    bool
+	noToken bool
 }
 
 func (g *fakeGen) Generate(context.Context, string) ([]byte, error) {
 	g.calls++
+	if g.noToken {
+		return nil, ErrNoToken
+	}
 	if g.fail {
 		return nil, errors.New("квота исчерпана")
 	}
@@ -281,5 +285,22 @@ func TestCarouselSlides(t *testing.T) {
 	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ По расписанию"))
 	if wall.posts != 1 || wall.att != "photo-1_201,photo-1_202,photo-1_203" {
 		t.Fatalf("wall = %+v", wall)
+	}
+}
+
+func TestNoHFTokenWaitsWithoutErrors(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, gen := newManager(t, Item{ID: "p1", Text: "x", Prompt: "room"})
+	gen.noToken = true
+	for i := 0; i < 5; i++ {
+		m.Tick(ctx)
+	}
+	if len(msg.sent) != 0 {
+		t.Fatalf("must not notify without token: %+v", msg.sent)
+	}
+	gen.noToken = false
+	m.Tick(ctx)
+	if msg.uploads != 1 {
+		t.Fatal("preview must be sent once the token appears")
 	}
 }

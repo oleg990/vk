@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -71,6 +72,9 @@ func (c Content) Overlay(ctx context.Context, path string) ([]byte, error) {
 	return c.get(ctx, path)
 }
 
+// ErrNoToken — HF_TOKEN не задан: посты ждут, попытки не тратятся.
+var ErrNoToken = errors.New("HF_TOKEN не задан")
+
 // HF генерирует картинку через Hugging Face Inference API (FLUX.1-schnell).
 type HF struct {
 	URL   string
@@ -80,7 +84,7 @@ type HF struct {
 
 func (h HF) Generate(ctx context.Context, prompt string) ([]byte, error) {
 	if h.Token == "" {
-		return nil, fmt.Errorf("HF_TOKEN не задан")
+		return nil, ErrNoToken
 	}
 	body, _ := json.Marshal(map[string]any{
 		"inputs": prompt,

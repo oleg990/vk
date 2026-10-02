@@ -5,6 +5,7 @@ package autopost
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -179,11 +180,20 @@ func (m *Manager) Process(ctx context.Context) {
 		m.Log.Error("autopost load", "err", err)
 		return
 	}
+	noTokenLogged := false
 	for _, st := range sorted(states) {
 		if st.Status != StatusNew {
 			continue
 		}
 		if err := m.prepare(ctx, st); err != nil {
+			if errors.Is(err, ErrNoToken) {
+				// не ошибка поста: ждём, пока в .env появится HF_TOKEN
+				if !noTokenLogged {
+					m.Log.Warn("autopost: HF_TOKEN не задан, посты с фото ждут")
+					noTokenLogged = true
+				}
+				continue
+			}
 			st.Attempts++
 			st.Error = err.Error()
 			m.Log.Warn("autopost prepare", "id", st.ID, "attempt", st.Attempts, "err", err)
