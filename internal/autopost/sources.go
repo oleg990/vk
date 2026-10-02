@@ -35,11 +35,21 @@ type Slide struct {
 // Content читает очередь постов (по умолчанию raw-файлы GitHub).
 type Content struct {
 	BaseURL string // например https://raw.githubusercontent.com/oleg990/vk/main/content/
-	HTTP    *http.Client
+	// Extra — дополнительные ветки (например claude/posts, куда пушит задача Claude). Посты оттуда,
+	// которых нет в основной очереди, тоже берутся; ветки может не быть — тогда она пропускается.
+	Extra []string
+	HTTP  *http.Client
 }
 
 func (c Content) get(ctx context.Context, path string) ([]byte, error) {
-	u := strings.TrimRight(c.BaseURL, "/") + "/" + strings.TrimLeft(path, "/")
+	return c.getFrom(ctx, c.BaseURL, path)
+}
+
+func (c Content) getFrom(ctx context.Context, base, path string) ([]byte, error) {
+	u := path
+	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
+		u = strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
@@ -57,7 +67,43 @@ func (c Content) get(ctx context.Context, path string) ([]byte, error) {
 }
 
 func (c Content) Queue(ctx context.Context) ([]Item, error) {
-	raw, err := c.get(ctx, "queue.json")
+	items, err := c.queueFrom(ctx, c.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, it := range items {
+		seen[it.ID] = true
+	}
+	for _, base := range c.Extra {
+		extra, err := c.queueFrom(ctx, base)
+		if err != nil {
+			continue // ветки ещё нет — это нормально
+		}
+		for _, it := range extra {
+			if seen[it.ID] {
+				continue
+			}
+			seen[it.ID] = true
+			// картинки этого поста лежат в той же ветке — делаем пути полными
+			abs := func(p string) string {
+				if p == "" || strings.HasPrefix(p, "http") {
+					return p
+				}
+				return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(p, "/")
+			}
+			it.Overlay = abs(it.Overlay)
+			for i := range it.Slides {
+				it.Slides[i].Overlay = abs(it.Slides[i].Overlay)
+			}
+			items = append(items, it)
+		}
+	}
+	return items, nil
+}
+
+func (c Content) queueFrom(ctx context.Context, base string) ([]Item, error) {
+	raw, err := c.getFrom(ctx, base, "queue.json")
 	if err != nil {
 		return nil, err
 	}

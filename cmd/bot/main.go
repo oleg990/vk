@@ -63,7 +63,7 @@ func run(log *slog.Logger) error {
 
 	ap := &autopost.Manager{
 		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
-		Content:   autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
+		Content:   autopost.Content{BaseURL: cfg.ContentURL, Extra: cfg.ContentExtra, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		UploadGap: 3 * time.Second,
 		Photos: autopost.Stocks{
 			autopost.Pixabay{URL: "https://pixabay.com", Key: cfg.PixabayKey, HTTP: &http.Client{Timeout: 60 * time.Second}},

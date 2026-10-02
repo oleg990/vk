@@ -185,3 +185,28 @@ func TestOpenverseNoKey(t *testing.T) {
 		t.Fatalf("img=%q err=%v", img, err)
 	}
 }
+
+func TestContentMergesExtraBranch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/main/queue.json":
+			fmt.Fprint(w, `[{"id":"a","text":"x","overlay":"posts/a/o.png"}]`)
+		case "/posts/queue.json":
+			fmt.Fprint(w, `[{"id":"a","text":"x"},{"id":"b","text":"y","slides":[{"overlay":"posts/b/01.png?v=1"}]}]`)
+		case "/posts/posts/b/01.png":
+			fmt.Fprint(w, "png")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := Content{BaseURL: srv.URL + "/main/", Extra: []string{srv.URL + "/posts/", srv.URL + "/missing/"}, HTTP: srv.Client()}
+	items, err := c.Queue(context.Background())
+	if err != nil || len(items) != 2 || items[0].Overlay != "posts/a/o.png" || items[1].Slides[0].Overlay != srv.URL+"/posts/posts/b/01.png?v=1" {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	b, err := c.Overlay(context.Background(), items[1].Slides[0].Overlay)
+	if err != nil || string(b) != "png" {
+		t.Fatalf("overlay=%q err=%v", b, err)
+	}
+}

@@ -25,12 +25,13 @@ type Config struct {
 	FBKey        string   // Fusion Brain (Kandinsky): ключ
 	FBSecret     string   // Fusion Brain: секрет
 	FBURL        string
-	PexelsKey    string // фотосток Pexels (бесплатный ключ)
-	PixabayKey   string // фотосток Pixabay (бесплатный ключ)
-	RoutineID    string // задача Claude «сделай пост» (claude.ai/code/routines)
-	RoutineToken string // её API-токен
-	ContentURL   string // откуда брать очередь постов
-	VKAPIURL     string // по умолчанию https://api.vk.com/method/
+	PexelsKey    string   // фотосток Pexels (бесплатный ключ)
+	PixabayKey   string   // фотосток Pixabay (бесплатный ключ)
+	ContentExtra []string // доп. ветки с очередью (claude/posts)
+	RoutineID    string   // задача Claude «сделай пост» (claude.ai/code/routines)
+	RoutineToken string   // её API-токен
+	ContentURL   string   // откуда брать очередь постов
+	VKAPIURL     string   // по умолчанию https://api.vk.com/method/
 	Timezone     string
 }
 
@@ -50,6 +51,7 @@ func Load() (Config, error) {
 		FBURL:        envOr("FB_URL", "https://api-key.fusionbrain.ai"),
 		PexelsKey:    strings.TrimSpace(os.Getenv("PEXELS_KEY")),
 		PixabayKey:   strings.TrimSpace(os.Getenv("PIXABAY_KEY")),
+		ContentExtra: strings.Split(envOr("CONTENT_EXTRA_URLS", "https://raw.githubusercontent.com/oleg990/vk/claude/posts/content/"), ","),
 		RoutineID:    strings.TrimSpace(os.Getenv("ROUTINE_ID")),
 		RoutineToken: strings.TrimSpace(os.Getenv("ROUTINE_TOKEN")),
 		ContentURL:   envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
