@@ -655,9 +655,19 @@ func (m *Manager) retryErrors(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	const migKey = "autopost_resend_access_key"
+	_, done, _ := m.Store.GetSetting(ctx, migKey)
+	resend := !done
+	if resend {
+		_ = m.Store.SetSetting(ctx, migKey, json.RawMessage(`true`))
+	}
 	for _, st := range states {
 		if st.Status == StatusError {
 			st.Status, st.Attempts, st.Error = StatusNew, 0, ""
+		}
+		// один раз: превью, отправленные без ключа доступа к фото (картинка не была видна), — отправить заново
+		if resend && st.Status == StatusAwaiting && len(st.Atts) > 0 && strings.Count(st.Atts[0], "_") < 2 {
+			st.Status, st.Atts = StatusNew, nil
 		}
 	}
 	if err := m.save(ctx, states); err != nil {

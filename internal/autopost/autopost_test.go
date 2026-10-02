@@ -400,3 +400,19 @@ func TestStockPhotoFirstThenGenerator(t *testing.T) {
 		t.Fatalf("fallback to generator: gen=%d previews=%d", gen.calls, msg.previews())
 	}
 }
+
+func TestStartupResendsPreviewsWithoutAccessKey(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, gen := newManager(t, Item{ID: "p1", PublishAt: now.Add(48 * time.Hour), Text: "x", Prompt: "room"})
+	m.Tick(ctx) // превью ушло с photo-1_201 (без ключа)
+	m.retryErrors(ctx)
+	m.Tick(ctx)
+	if msg.previews() != 2 || gen.calls != 1 {
+		t.Fatalf("previews=%d gen=%d", msg.previews(), gen.calls)
+	}
+	m.retryErrors(ctx) // повторный запуск — уже не переотправляем
+	m.Tick(ctx)
+	if msg.previews() != 2 {
+		t.Fatalf("resent twice: %d", msg.previews())
+	}
+}
