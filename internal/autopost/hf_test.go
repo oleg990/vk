@@ -135,3 +135,24 @@ func TestPexelsSearch(t *testing.T) {
 		t.Fatalf("no key err = %v", err)
 	}
 }
+
+func TestPixabaySearch(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/":
+			q := r.URL.Query()
+			if q.Get("key") != "pb" || q.Get("q") != "cozy kitchen" || q.Get("orientation") != "vertical" {
+				t.Errorf("search %v", q)
+			}
+			fmt.Fprintf(w, `{"hits":[{"largeImageURL":"%s/img.jpg"}]}`, srv.URL)
+		case "/img.jpg":
+			fmt.Fprint(w, "jpg")
+		}
+	}))
+	defer srv.Close()
+	img, err := Stocks{Pexels{}, Pixabay{URL: srv.URL, Key: "pb", HTTP: srv.Client()}}.Search(context.Background(), "cozy kitchen")
+	if err != nil || string(img) != "jpg" {
+		t.Fatalf("img=%q err=%v", img, err)
+	}
+}

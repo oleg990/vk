@@ -63,7 +63,10 @@ func run(log *slog.Logger) error {
 	ap := &autopost.Manager{
 		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
 		Content: autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
-		Photos:  autopost.Pexels{URL: "https://api.pexels.com", Key: cfg.PexelsKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
+		Photos: autopost.Stocks{
+			autopost.Pixabay{URL: "https://pixabay.com", Key: cfg.PixabayKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
+			autopost.Pexels{URL: "https://api.pexels.com", Key: cfg.PexelsKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
+		},
 		Gen: autopost.Chain{
 			// бесплатный Kandinsky первым, FLUX через Hugging Face — запасной
 			autopost.Kandinsky{URL: cfg.FBURL, Key: cfg.FBKey, Secret: cfg.FBSecret, HTTP: &http.Client{Timeout: 60 * time.Second}},

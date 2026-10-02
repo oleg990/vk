@@ -26,6 +26,7 @@ type Config struct {
 	FBSecret    string   // Fusion Brain: секрет
 	FBURL       string
 	PexelsKey   string // фотосток Pexels (бесплатный ключ)
+	PixabayKey  string // фотосток Pixabay (бесплатный ключ)
 	ContentURL  string // откуда брать очередь постов
 	VKAPIURL    string // по умолчанию https://api.vk.com/method/
 	Timezone    string
@@ -46,6 +47,7 @@ func Load() (Config, error) {
 		FBSecret:    strings.TrimSpace(os.Getenv("FB_SECRET")),
 		FBURL:       envOr("FB_URL", "https://api-key.fusionbrain.ai"),
 		PexelsKey:   strings.TrimSpace(os.Getenv("PEXELS_KEY")),
+		PixabayKey:  strings.TrimSpace(os.Getenv("PIXABAY_KEY")),
 		ContentURL:  envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
 		VKAPIURL:    os.Getenv("VK_API_URL"),
 		Timezone:    envOr("TZ_NAME", "Europe/Moscow"),
