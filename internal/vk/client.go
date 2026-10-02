@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -48,8 +49,8 @@ func New(token string, groupID int64, baseURL string, log *slog.Logger) *Client 
 		groupID:  groupID,
 		version:  DefaultAPIVersion,
 		baseURL:  baseURL,
-		api:      &http.Client{Timeout: 20 * time.Second},
-		longPoll: &http.Client{Timeout: (longPollWait + 10) * time.Second},
+		api:      &http.Client{Timeout: 60 * time.Second, Transport: ipv4Transport()},
+		longPoll: &http.Client{Timeout: (longPollWait + 10) * time.Second, Transport: ipv4Transport()},
 		log:      log,
 	}
 }
@@ -257,4 +258,15 @@ func sleep(ctx context.Context, d time.Duration) {
 	case <-ctx.Done():
 	case <-t.C:
 	}
+}
+
+// ipv4Transport ходит в VK только по IPv4: адрес загрузки фото VK привязывает к IP,
+// и если запрос адреса уйдёт по IPv6, а сама загрузка по IPv4 (или наоборот), VK вернёт пустой photo.
+func ipv4Transport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	t.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
+		return d.DialContext(ctx, "tcp4", addr)
+	}
+	return t
 }

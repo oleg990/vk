@@ -105,7 +105,11 @@ func (c *Client) uploadFile(ctx context.Context, uploadURL string, img []byte) (
 		return uploadResult{}, fmt.Errorf("upload decode: %w", err)
 	}
 	if res.Photo == "" || res.Photo == "[]" {
-		return uploadResult{}, fmt.Errorf("upload: пустой ответ VK: %s", truncate(string(raw), 200))
+		host := uploadURL
+		if u, err := url.Parse(uploadURL); err == nil {
+			host = u.Host
+		}
+		return uploadResult{}, fmt.Errorf("upload: пустой ответ VK (%s, %d байт): %s", host, len(img), truncate(string(raw), 200))
 	}
 	return res, nil
 }

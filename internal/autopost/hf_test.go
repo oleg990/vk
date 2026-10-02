@@ -1,10 +1,12 @@
 package autopost
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -170,14 +172,16 @@ func TestOpenverseNoKey(t *testing.T) {
 				fmt.Fprint(w, `{"results":[{"url":"x","width":100,"height":200}]}`) // мелкая — отбрасывается
 				return
 			}
-			fmt.Fprintf(w, `{"results":[{"url":"%s/img.jpg","width":2000,"height":1500}]}`, srv.URL)
+			fmt.Fprintf(w, `{"results":[{"url":"%[1]s/bad.webp","width":2000,"height":1500},{"url":"%[1]s/img.jpg","width":2000,"height":1500}]}`, srv.URL)
 		case "/img.jpg":
-			fmt.Fprint(w, "jpg")
+			_, _ = w.Write(pngOf(10, 10, color.White))
+		case "/bad.webp":
+			fmt.Fprint(w, "RIFFxxxxWEBP")
 		}
 	}))
 	defer srv.Close()
 	img, err := Openverse{URL: srv.URL, HTTP: srv.Client()}.Search(context.Background(), "cozy kitchen")
-	if err != nil || string(img) != "jpg" {
+	if err != nil || !bytes.HasPrefix(img, []byte("\x89PNG")) {
 		t.Fatalf("img=%q err=%v", img, err)
 	}
 }

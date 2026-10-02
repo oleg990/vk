@@ -1,9 +1,13 @@
 package autopost
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -34,7 +38,7 @@ type ovImage struct {
 }
 
 func (o Openverse) find(ctx context.Context, query string, tall bool) ([]ovImage, error) {
-	q := url.Values{"q": {query}, "license": {"cc0,pdm"}, "size": {"large"}, "page_size": {"20"}, "mature": {"false"}}
+	q := url.Values{"q": {query}, "license": {"cc0,pdm"}, "size": {"large"}, "page_size": {"20"}, "mature": {"false"}, "extension": {"jpg,jpeg,png"}}
 	if tall {
 		q.Set("aspect_ratio", "tall")
 	}
@@ -73,10 +77,14 @@ func (o Openverse) search(ctx context.Context, query string) ([]byte, error) {
 	}
 	// пробуем до 3 случайных: часть исходных сайтов бывает недоступна
 	var lastErr error
-	for _, i := range rand.Perm(len(imgs))[:min(3, len(imgs))] {
+	for _, i := range rand.Perm(len(imgs))[:min(5, len(imgs))] {
 		img, err := o.get(ctx, imgs[i].URL)
 		if err == nil {
-			return img, nil
+			// формат, который не читается (WebP, SVG…), пропускаем
+			if _, _, derr := image.DecodeConfig(bytes.NewReader(img)); derr == nil {
+				return img, nil
+			}
+			err = fmt.Errorf("неподдерживаемый формат: %s", imgs[i].URL)
 		}
 		lastErr = err
 	}
