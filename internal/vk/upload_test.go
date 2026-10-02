@@ -1,8 +1,11 @@
 package vk
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,11 +24,16 @@ func TestUploadWallPhotoAndPost(t *testing.T) {
 			}
 			fmt.Fprintf(w, `{"response":{"upload_url":"%s/upload"}}`, srv.URL)
 		case r.URL.Path == "/upload":
-			f, _, err := r.FormFile("photo")
+			f, fh, err := r.FormFile("photo")
 			if err != nil {
 				t.Errorf("no photo field: %v", err)
 			} else {
+				head := make([]byte, 3)
+				_, _ = f.Read(head)
 				f.Close()
+				if fh.Filename != "post.jpg" || fh.Header.Get("Content-Type") != "image/jpeg" || string(head) != "\xff\xd8\xff" {
+					t.Errorf("upload not JPEG: %s %v % x", fh.Filename, fh.Header, head)
+				}
 			}
 			fmt.Fprint(w, `{"server":11,"photo":"[{\"x\":1}]","hash":"h"}`)
 		case strings.HasSuffix(r.URL.Path, "/photos.saveWallPhoto"):
@@ -47,7 +55,9 @@ func TestUploadWallPhotoAndPost(t *testing.T) {
 
 	c := New("group-token", 7, srv.URL+"/method/", nil).WithToken("user-token")
 	ctx := context.Background()
-	att, err := c.UploadWallPhoto(ctx, 7, []byte("png"))
+	var pngBuf bytes.Buffer
+	_ = png.Encode(&pngBuf, image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	att, err := c.UploadWallPhoto(ctx, 7, pngBuf.Bytes())
 	if err != nil || att != "photo-7_555" {
 		t.Fatalf("att=%q err=%v", att, err)
 	}

@@ -5,9 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strconv"
 )
@@ -45,15 +50,40 @@ type uploadResult struct {
 	Hash   string `json:"hash"`
 }
 
-// uploadFile отправляет картинку на адрес загрузки VK (поле photo).
-func (c *Client) uploadFile(ctx context.Context, uploadURL string, png []byte) (uploadResult, error) {
+// toJPEG перекодирует PNG в JPEG: сервер загрузки VK надёжнее принимает JPEG
+// (на некоторые PNG он отвечает пустым полем photo).
+func toJPEG(img []byte) []byte {
+	if !bytes.HasPrefix(img, []byte("\x89PNG")) {
+		return img
+	}
+	src, err := png.Decode(bytes.NewReader(img))
+	if err != nil {
+		return img
+	}
+	// JPEG без прозрачности: кладём на белый
+	rgba := image.NewRGBA(src.Bounds())
+	draw.Draw(rgba, rgba.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.Draw(rgba, rgba.Bounds(), src, src.Bounds().Min, draw.Over)
+	var out bytes.Buffer
+	if err := jpeg.Encode(&out, rgba, &jpeg.Options{Quality: 92}); err != nil {
+		return img
+	}
+	return out.Bytes()
+}
+
+// uploadFile отправляет картинку на адрес загрузки VK (поле photo, JPEG).
+func (c *Client) uploadFile(ctx context.Context, uploadURL string, img []byte) (uploadResult, error) {
+	img = toJPEG(img)
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
-	fw, err := w.CreateFormFile("photo", "post.png")
+	h := textproto.MIMEHeader{}
+	h.Set("Content-Disposition", `form-data; name="photo"; filename="post.jpg"`)
+	h.Set("Content-Type", "image/jpeg")
+	fw, err := w.CreatePart(h)
 	if err != nil {
 		return uploadResult{}, err
 	}
-	if _, err := fw.Write(png); err != nil {
+	if _, err := fw.Write(img); err != nil {
 		return uploadResult{}, err
 	}
 	if err := w.Close(); err != nil {
