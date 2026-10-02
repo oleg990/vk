@@ -90,5 +90,6 @@
       }
     }
   ],
-  "theme": "sky"
+  "theme": "sky",
+  "style": "clean"
 }

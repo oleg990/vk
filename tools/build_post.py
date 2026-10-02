@@ -11,7 +11,8 @@ spec.json:
     {"cta": {"kicker": "", "title": ["", ""], "points": ["", ""], "button": ""}}
   ]
 }
-"theme" (необязательно): navy, terracotta, forest, charcoal, burgundy, cream, sky, mint — см. tools/themes.py;
+"style" (необязательно): premium, grunge, editorial, bold, clean — см. tools/design.py; без него — по id.
+"theme" (для clean и editorial): navy, terracotta, forest, charcoal, burgundy, cream, sky, mint — см. tools/themes.py;
 без неё тема выбирается по id. Внутренние слайды рисуются с непрозрачным фоном темы, обложка — поверх фото.
 --preview дополнительно собирает PNG как их увидит пользователь (обложка — на заглушке вместо фото).
 """
@@ -25,6 +26,7 @@ from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, os.path.dirname(__file__))
 import overlay as cover_overlay  # noqa: E402
 import themes  # noqa: E402
+import design  # noqa: E402
 
 F = "/usr/share/fonts/opentype/inter/"
 W, H, K = 1080, 1350, 2
@@ -144,12 +146,24 @@ def gradient():
 
 
 def stand_in_photo():
-    """Заглушка вместо фото FLUX для предпросмотра обложки."""
-    g = Image.new("RGB", (1, H))
+    """Заглушка вместо фото для предпросмотра: закатное небо и силуэты домов с окнами."""
+    import random
+    rnd = random.Random(3)
+    img = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(img)
     for y in range(H):
-        t = y / (H - 1)
-        g.putpixel((0, y), (int(150 - 60 * t), int(175 - 70 * t), int(205 - 80 * t)))
-    return g.resize((W, H))
+        p = y / H
+        d.line((0, y, W, y), fill=(int(70 + 170 * p), int(90 + 80 * p), int(140 - 60 * p)))
+    x = -40
+    while x < W:
+        bw, bh = rnd.randint(110, 220), rnd.randint(380, 1050)
+        d.rectangle((x, H - bh, x + bw, H), fill=(28, 30, 40))
+        for wy in range(H - bh + 30, H, 46):
+            for wx in range(x + 16, x + bw - 20, 34):
+                if rnd.random() < 0.45:
+                    d.rectangle((wx, wy, wx + 16, wy + 24), fill=(255, 196, 110))
+        x += bw + rnd.randint(10, 40)
+    return img
 
 
 def build(spec_path, preview=None):
@@ -157,19 +171,11 @@ def build(spec_path, preview=None):
     spec = json.load(open(spec_path, encoding="utf-8"))
     pid, base = spec["id"], os.path.dirname(spec_path)
     T = themes.pick(spec.get("theme", ""), pid)
-    n = len(spec["slides"])
+    seed = int(hashlib.md5(pid.encode()).hexdigest(), 16) % 10000
+    style, paths = design.render_post(spec, base, seed)
     slides = []
-    for i, s in enumerate(spec["slides"]):
-        name = f"{i + 1:02d}.png"
-        out = os.path.join(base, name)
-        page = f"{i + 1}/{n}"
-        if "cover" in s:
-            c = s["cover"]
-            cover_overlay.render(out, c["kicker"], c["title"], c["sub"], c["cta"], T)
-        elif "list" in s:
-            list_slide(out, s["list"], page)
-        else:
-            cta_slide(out, s["cta"], page)
+    for i, (s, out) in enumerate(zip(spec["slides"], paths)):
+        name = os.path.basename(out)
         # ?v=<хеш> — бот видит, что картинка поменялась, и пересобирает превью (GitHub параметр игнорирует)
         ver = hashlib.md5(open(out, "rb").read()).hexdigest()[:8]
         item = {"overlay": f"posts/{pid}/{name}?v={ver}"}
@@ -179,8 +185,7 @@ def build(spec_path, preview=None):
             item = {"query": s["query"], **item}
         slides.append(item)
         if preview:
-            bg = stand_in_photo() if s.get("prompt") else gradient()
-            bg = bg.convert("RGBA")
+            bg = stand_in_photo().convert("RGBA")
             bg.alpha_composite(Image.open(out).convert("RGBA"))
             os.makedirs(preview, exist_ok=True)
             bg.convert("RGB").save(os.path.join(preview, f"{pid}-{name}"))
@@ -193,7 +198,7 @@ def build(spec_path, preview=None):
     with open(qp, "w", encoding="utf-8") as f:
         json.dump(queue, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    print(pid, n, "slides")
+    print(pid, style, len(paths), "slides")
 
 
 if __name__ == "__main__":

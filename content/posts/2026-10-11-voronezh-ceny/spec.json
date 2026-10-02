@@ -100,5 +100,6 @@
       }
     }
   ],
-  "theme": "terracotta"
+  "theme": "terracotta",
+  "style": "premium"
 }

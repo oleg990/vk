@@ -96,5 +96,6 @@
       }
     }
   ],
-  "theme": "forest"
+  "theme": "forest",
+  "style": "bold"
 }

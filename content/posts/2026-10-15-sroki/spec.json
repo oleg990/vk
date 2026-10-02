@@ -96,5 +96,6 @@
       }
     }
   ],
-  "theme": "charcoal"
+  "theme": "charcoal",
+  "style": "grunge"
 }
