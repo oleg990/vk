@@ -52,6 +52,9 @@ type State struct {
 	Attempts  int       `json:"attempts,omitempty"`
 	Error     string    `json:"error,omitempty"`
 	VKPostID  int64     `json:"vk_post_id,omitempty"`
+	Rerender  bool      `json:"rerender,omitempty"` // картинки надо сделать заново (правка поста, «🔁»)
+	Atts      []string  `json:"atts,omitempty"`     // фото уже загружены в группу — при публикации не грузим снова
+	Fallback  string    `json:"fallback,omitempty"` // почему обложка на фирменном фоне вместо фото
 }
 
 // Messenger — личные сообщения Олегу (ключ группы).
@@ -167,6 +170,7 @@ func (m *Manager) Sync(ctx context.Context) error {
 		if changed && (st.Status == StatusNew || st.Status == StatusAwaiting || st.Status == StatusError) {
 			st.Text, st.Prompt, st.Overlay, st.PublishAt, st.Slides = it.Text, it.Prompt, it.Overlay, it.PublishAt, it.Slides
 			st.Status, st.Attempts, st.Error = StatusNew, 0, ""
+			st.Rerender, st.Atts = true, nil
 		}
 	}
 	return m.save(ctx, states)
@@ -252,32 +256,66 @@ func (m *Manager) imagePath(id string, i int) string {
 
 func (m *Manager) prepare(ctx context.Context, st *State) error {
 	var images, atts []string
+	inGroup := true // все фото загружены в группу (ключом пользователя) — их можно сразу публиковать
+	if st.Rerender {
+		st.Fallback = ""
+	}
 	for i, sl := range st.slideList() {
-		img, err := m.renderSlide(ctx, st, i, sl)
-		if err != nil {
-			return fmt.Errorf("слайд %d: %w", i+1, err)
-		}
 		path := m.imagePath(st.ID, i)
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			return err
+		var img []byte
+		if !st.Rerender {
+			// уже сделанная картинка (например, упала только отправка превью) — не тратим генерацию повторно
+			img, _ = os.ReadFile(path)
 		}
-		if err := os.WriteFile(path, img, 0o640); err != nil {
-			return err
+		if len(img) == 0 {
+			var err error
+			img, err = m.renderSlide(ctx, st, i, sl)
+			if err != nil {
+				return fmt.Errorf("слайд %d: %w", i+1, err)
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+				return err
+			}
+			if err := os.WriteFile(path, img, 0o640); err != nil {
+				return err
+			}
 		}
 		images = append(images, path)
-		att, err := m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
+		att, wall, err := m.uploadPreview(ctx, img)
 		if err != nil {
 			return fmt.Errorf("превью: %w", err)
 		}
+		inGroup = inGroup && wall
 		atts = append(atts, att)
 	}
-	st.Images, st.Image = images, ""
+	st.Images, st.Image, st.Rerender = images, "", false
+	st.Atts = nil
+	if inGroup {
+		st.Atts = atts
+	}
 	slides := ""
 	if len(images) > 1 {
 		slides = fmt.Sprintf(" · %d слайдов", len(images))
 	}
 	text := fmt.Sprintf("📝 Пост на одобрение · %s%s\n🕒 %s\n\n%s", st.ID, slides, m.fmtTime(st.PublishAt), st.Text)
+	if st.Fallback != "" {
+		text = "⚠️ Фото не сгенерировалось, обложка на фирменном фоне. «🔁 Другое фото» — попробовать ещё раз.\nПричина: " + st.Fallback + "\n\n" + text
+	}
 	return m.Msg.SendAttachment(ctx, m.AdminID, text, strings.Join(atts, ","), m.previewButtons(st))
+}
+
+// uploadPreview грузит фото в альбом группы ключом пользователя (тогда при публикации его не нужно
+// грузить снова), а без него — в личные сообщения ключом группы.
+func (m *Manager) uploadPreview(ctx context.Context, img []byte) (att string, wall bool, err error) {
+	if m.Wall != nil {
+		att, err = m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
+		if err == nil {
+			return att, true, nil
+		}
+		m.Log.Warn("autopost: фото в группу не загрузилось, пробую через сообщения", "err", err)
+	}
+	att, err = m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
+	return att, false, err
 }
 
 func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) ([]byte, error) {
@@ -290,10 +328,20 @@ func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) (
 		photo = p
 	} else if sl.Prompt != "" {
 		p, err := m.Gen.Generate(ctx, sl.Prompt)
-		if err != nil {
+		switch {
+		case err == nil:
+			photo = p
+		case errors.Is(err, ErrNoToken) || st.Attempts < 2:
 			return nil, err
+		default:
+			// третья попытка: не держим пост — делаем обложку на фирменном фоне
+			m.Log.Warn("autopost: генерация не удалась, фирменный фон", "id", st.ID, "err", err)
+			msg := err.Error()
+			if len(msg) > 200 {
+				msg = msg[:200] + "…"
+			}
+			st.Fallback = msg
 		}
-		photo = p
 	}
 	overlay, err := m.Content.Overlay(ctx, sl.Overlay)
 	if err != nil {
@@ -480,8 +528,14 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 		if m.Wall == nil {
 			return "⚠️ Публикация недоступна: на сервере не задан VK_USER_TOKEN."
 		}
-		var atts []string
+		atts := st.Atts
+		if len(atts) != len(st.imageList()) {
+			atts = nil
+		}
 		for _, path := range st.imageList() {
+			if len(st.Atts) == len(st.imageList()) {
+				break
+			}
 			img, err := os.ReadFile(path)
 			if err != nil {
 				return "Не нашёл картинку: " + err.Error()
@@ -527,6 +581,7 @@ func (m *Manager) redo(ctx context.Context, id string) string {
 			return "Пост уже " + statusTitle[st.Status] + "."
 		}
 		st.Status, st.Attempts, st.Error = StatusNew, 0, ""
+		st.Rerender, st.Atts = true, nil
 		return "🔁 Делаю другое фото для «" + id + "»…"
 	})
 }

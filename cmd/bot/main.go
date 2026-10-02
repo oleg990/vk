@@ -63,8 +63,12 @@ func run(log *slog.Logger) error {
 	ap := &autopost.Manager{
 		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
 		Content: autopost.Content{BaseURL: cfg.ContentURL, HTTP: &http.Client{Timeout: 30 * time.Second}},
-		Gen:     autopost.HF{URL: cfg.HFRouterURL, Providers: cfg.HFProviders, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
-		Store:   store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
+		Gen: autopost.Chain{
+			// бесплатный Kandinsky первым, FLUX через Hugging Face — запасной
+			autopost.Kandinsky{URL: cfg.FBURL, Key: cfg.FBKey, Secret: cfg.FBSecret, HTTP: &http.Client{Timeout: 60 * time.Second}},
+			autopost.HF{URL: cfg.HFRouterURL, Providers: cfg.HFProviders, Token: cfg.HFToken, HTTP: &http.Client{Timeout: 120 * time.Second}},
+		},
+		Store: store, DataDir: filepath.Dir(cfg.DataFile), Loc: loc, Log: log,
 		HTTP: &http.Client{Timeout: 60 * time.Second},
 	}
 	if cfg.VKUserToken != "" {

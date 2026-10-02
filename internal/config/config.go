@@ -22,8 +22,11 @@ type Config struct {
 	HFToken     string   // токен Hugging Face для генерации фото
 	HFRouterURL string   // https://router.huggingface.co
 	HFProviders []string // провайдеры FLUX по порядку: fal-ai, nscale
-	ContentURL  string   // откуда брать очередь постов
-	VKAPIURL    string   // по умолчанию https://api.vk.com/method/
+	FBKey       string   // Fusion Brain (Kandinsky): ключ
+	FBSecret    string   // Fusion Brain: секрет
+	FBURL       string
+	ContentURL  string // откуда брать очередь постов
+	VKAPIURL    string // по умолчанию https://api.vk.com/method/
 	Timezone    string
 }
 
@@ -38,6 +41,9 @@ func Load() (Config, error) {
 		HFToken:     strings.TrimSpace(os.Getenv("HF_TOKEN")),
 		HFRouterURL: envOr("HF_ROUTER_URL", "https://router.huggingface.co"),
 		HFProviders: strings.Split(envOr("HF_PROVIDERS", "fal-ai,nscale"), ","),
+		FBKey:       strings.TrimSpace(os.Getenv("FB_KEY")),
+		FBSecret:    strings.TrimSpace(os.Getenv("FB_SECRET")),
+		FBURL:       envOr("FB_URL", "https://api-key.fusionbrain.ai"),
 		ContentURL:  envOr("CONTENT_URL", "https://raw.githubusercontent.com/oleg990/vk/main/content/"),
 		VKAPIURL:    os.Getenv("VK_API_URL"),
 		Timezone:    envOr("TZ_NAME", "Europe/Moscow"),

@@ -50,6 +50,17 @@ func (f *fakeMsg) SendAttachment(_ context.Context, _ int64, text, att string, k
 }
 func (f *fakeMsg) last() sentMsg { return f.sent[len(f.sent)-1] }
 
+// previews — сколько превью на одобрение отправлено.
+func (f *fakeMsg) previews() int {
+	n := 0
+	for _, m := range f.sent {
+		if strings.Contains(m.text, "на одобрение") {
+			n++
+		}
+	}
+	return n
+}
+
 type fakeWall struct {
 	posts       int
 	publishDate int64
@@ -122,16 +133,16 @@ func TestPreviewApproveSchedules(t *testing.T) {
 	ctx := context.Background()
 	m, msg, wall, gen := newManager(t, Item{ID: "p1", PublishAt: now.Add(72 * time.Hour), Text: "Текст поста", Prompt: "kitchen", Overlay: "posts/p1/overlay.png"})
 	m.Tick(ctx)
-	if gen.calls != 1 || msg.uploads != 1 {
-		t.Fatalf("gen=%d uploads=%d", gen.calls, msg.uploads)
+	if gen.calls != 1 || msg.previews() != 1 {
+		t.Fatalf("gen=%d uploads=%d", gen.calls, msg.previews())
 	}
 	pv := msg.last()
-	if !strings.Contains(pv.text, "Текст поста") || pv.att != "photo1_100" || !pv.kb.Inline {
+	if !strings.Contains(pv.text, "Текст поста") || pv.att != "photo-1_201" || !pv.kb.Inline {
 		t.Fatalf("preview = %+v", pv)
 	}
 	// повторный цикл не шлёт превью снова
 	m.Tick(ctx)
-	if msg.uploads != 1 {
+	if msg.previews() != 1 {
 		t.Fatal("preview sent twice")
 	}
 	if btn(pv.kb, "⚡ Сейчас") == nil {
@@ -168,8 +179,8 @@ func TestRedoAndReject(t *testing.T) {
 	m, msg, wall, gen := newManager(t, Item{ID: "p1", PublishAt: now.Add(time.Hour * 24), Text: "x", Prompt: "room"})
 	m.Tick(ctx)
 	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_redo", "id": "p1"})
-	if gen.calls != 2 || msg.uploads != 2 {
-		t.Fatalf("redo: gen=%d uploads=%d", gen.calls, msg.uploads)
+	if gen.calls != 2 || msg.previews() != 2 {
+		t.Fatalf("redo: gen=%d uploads=%d", gen.calls, msg.previews())
 	}
 	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_no", "id": "p1"})
 	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_ok", "id": "p1"})
@@ -178,7 +189,7 @@ func TestRedoAndReject(t *testing.T) {
 	}
 }
 
-func TestGeneratorFailureNotifiesAfterThreeTries(t *testing.T) {
+func TestGeneratorFailureSilentBeforeThirdTry(t *testing.T) {
 	ctx := context.Background()
 	m, msg, _, gen := newManager(t, Item{ID: "p1", Text: "x", Prompt: "room"})
 	gen.fail = true
@@ -186,10 +197,6 @@ func TestGeneratorFailureNotifiesAfterThreeTries(t *testing.T) {
 	m.Tick(ctx)
 	if len(msg.sent) != 0 {
 		t.Fatal("must not notify before 3 failures")
-	}
-	m.Tick(ctx)
-	if len(msg.sent) != 1 || !strings.Contains(msg.last().text, "квота") || btn(msg.last().kb, "🔁 Другое фото") == nil {
-		t.Fatalf("notify = %+v", msg.sent)
 	}
 }
 
@@ -199,8 +206,8 @@ func TestQueueEditResendsPreview(t *testing.T) {
 	m.Tick(ctx)
 	m.Content.(*fakeContent).items[0].Text = "новый"
 	m.Tick(ctx)
-	if msg.uploads != 2 || !strings.Contains(msg.last().text, "новый") {
-		t.Fatalf("uploads=%d last=%q", msg.uploads, msg.last().text)
+	if msg.previews() != 2 || !strings.Contains(msg.last().text, "новый") {
+		t.Fatalf("uploads=%d last=%q", msg.previews(), msg.last().text)
 	}
 }
 
@@ -279,8 +286,8 @@ func TestCarouselSlides(t *testing.T) {
 	}})
 	m.Tick(ctx)
 	pv := msg.last()
-	if gen.calls != 1 || msg.uploads != 3 || len(strings.Split(pv.att, ",")) != 3 || !strings.Contains(pv.text, "3 слайдов") {
-		t.Fatalf("gen=%d uploads=%d preview=%+v", gen.calls, msg.uploads, pv)
+	if gen.calls != 1 || wall.uploads != 3 || len(strings.Split(pv.att, ",")) != 3 || !strings.Contains(pv.text, "3 слайдов") {
+		t.Fatalf("gen=%d uploads=%d preview=%+v", gen.calls, wall.uploads, pv)
 	}
 	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ По расписанию"))
 	if wall.posts != 1 || wall.att != "photo-1_201,photo-1_202,photo-1_203" {
@@ -300,7 +307,67 @@ func TestNoHFTokenWaitsWithoutErrors(t *testing.T) {
 	}
 	gen.noToken = false
 	m.Tick(ctx)
-	if msg.uploads != 1 {
+	if msg.previews() != 1 {
 		t.Fatal("preview must be sent once the token appears")
+	}
+}
+
+func TestPreviewViaGroupAlbumReusedOnApprove(t *testing.T) {
+	ctx := context.Background()
+	m, msg, wall, _ := newManager(t, Item{ID: "p1", PublishAt: now.Add(48 * time.Hour), Text: "x", Prompt: "room"})
+	m.Tick(ctx)
+	if msg.uploads != 0 || wall.uploads != 1 || msg.last().att != "photo-1_201" {
+		t.Fatalf("msg uploads=%d wall uploads=%d att=%q", msg.uploads, wall.uploads, msg.last().att)
+	}
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_ok", "id": "p1"})
+	if wall.uploads != 1 || wall.att != "photo-1_201" {
+		t.Fatalf("approve re-uploaded: uploads=%d att=%q", wall.uploads, wall.att)
+	}
+}
+
+type failMsg struct{ fakeMsg }
+
+func (f *failMsg) SendAttachment(context.Context, int64, string, string, *vk.Keyboard) error {
+	return errors.New("vk api error 15")
+}
+
+func TestRetryReusesRenderedImage(t *testing.T) {
+	ctx := context.Background()
+	m, _, _, gen := newManager(t, Item{ID: "p1", Text: "x", Prompt: "room"})
+	good := m.Msg
+	m.Msg = &failMsg{}
+	m.Tick(ctx)
+	m.Msg = good
+	m.Tick(ctx)
+	if gen.calls != 1 {
+		t.Fatalf("image regenerated: gen=%d", gen.calls)
+	}
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_redo", "id": "p1"})
+	if gen.calls != 2 {
+		t.Fatalf("redo must regenerate: gen=%d", gen.calls)
+	}
+}
+
+func TestGeneratorFailureFallsBackToBrandBackground(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, gen := newManager(t, Item{ID: "p1", Text: "x", Prompt: "room"})
+	gen.fail = true
+	m.Tick(ctx)
+	m.Tick(ctx)
+	m.Tick(ctx)
+	pv := msg.last()
+	if pv.att == "" || !strings.Contains(pv.text, "фирменном фоне") || !strings.Contains(pv.text, "квота") || btn(pv.kb, "✅ Опубликовать") == nil {
+		t.Fatalf("fallback preview = %+v", pv)
+	}
+}
+
+func TestChainSkipsMissingKeys(t *testing.T) {
+	g := &fakeGen{}
+	img, err := Chain{&fakeGen{noToken: true}, g}.Generate(context.Background(), "x")
+	if err != nil || len(img) == 0 || g.calls != 1 {
+		t.Fatalf("err=%v calls=%d", err, g.calls)
+	}
+	if _, err := (Chain{&fakeGen{noToken: true}}).Generate(context.Background(), "x"); !errors.Is(err, ErrNoToken) {
+		t.Fatalf("err=%v", err)
 	}
 }
