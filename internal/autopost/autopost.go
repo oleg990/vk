@@ -45,7 +45,9 @@ type State struct {
 	Prompt    string    `json:"prompt"`
 	Overlay   string    `json:"overlay"`
 	PhotoURL  string    `json:"photo_url,omitempty"` // фото, присланное с /срочно
-	Image     string    `json:"image,omitempty"`
+	Slides    []Slide   `json:"slides,omitempty"`
+	Image     string    `json:"image,omitempty"` // старый формат (одна картинка)
+	Images    []string  `json:"images,omitempty"`
 	Attempts  int       `json:"attempts,omitempty"`
 	Error     string    `json:"error,omitempty"`
 	VKPostID  int64     `json:"vk_post_id,omitempty"`
@@ -156,12 +158,12 @@ func (m *Manager) Sync(ctx context.Context) error {
 		}
 		st, ok := states[it.ID]
 		if !ok {
-			states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: it.PublishAt, Text: it.Text, Prompt: it.Prompt, Overlay: it.Overlay}
+			states[it.ID] = &State{ID: it.ID, Status: StatusNew, PublishAt: it.PublishAt, Text: it.Text, Prompt: it.Prompt, Overlay: it.Overlay, Slides: it.Slides}
 			continue
 		}
-		changed := st.Text != it.Text || st.Prompt != it.Prompt || st.Overlay != it.Overlay || !st.PublishAt.Equal(it.PublishAt)
+		changed := st.Text != it.Text || st.Prompt != it.Prompt || st.Overlay != it.Overlay || !st.PublishAt.Equal(it.PublishAt) || !sameSlides(st.Slides, it.Slides)
 		if changed && (st.Status == StatusNew || st.Status == StatusAwaiting || st.Status == StatusError) {
-			st.Text, st.Prompt, st.Overlay, st.PublishAt = it.Text, it.Prompt, it.Overlay, it.PublishAt
+			st.Text, st.Prompt, st.Overlay, st.PublishAt, st.Slides = it.Text, it.Prompt, it.Overlay, it.PublishAt, it.Slides
 			st.Status, st.Attempts, st.Error = StatusNew, 0, ""
 		}
 	}
@@ -198,45 +200,95 @@ func (m *Manager) Process(ctx context.Context) {
 	}
 }
 
-func (m *Manager) imagePath(id string) string { return filepath.Join(m.DataDir, "posts", id+".png") }
+// maxSlides — VK принимает до 10 вложений в посте и сообщении.
+const maxSlides = 10
+
+func sameSlides(a, b []Slide) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (st *State) slideList() []Slide {
+	if len(st.Slides) > 0 {
+		if len(st.Slides) > maxSlides {
+			return st.Slides[:maxSlides]
+		}
+		return st.Slides
+	}
+	return []Slide{{Prompt: st.Prompt, Overlay: st.Overlay}}
+}
+
+func (st *State) imageList() []string {
+	if len(st.Images) > 0 {
+		return st.Images
+	}
+	if st.Image != "" {
+		return []string{st.Image}
+	}
+	return nil
+}
+
+func (m *Manager) imagePath(id string, i int) string {
+	return filepath.Join(m.DataDir, "posts", fmt.Sprintf("%s-%02d.png", id, i+1))
+}
 
 func (m *Manager) prepare(ctx context.Context, st *State) error {
-	var photo []byte
-	if st.PhotoURL != "" {
-		p, err := m.download(ctx, st.PhotoURL)
+	var images, atts []string
+	for i, sl := range st.slideList() {
+		img, err := m.renderSlide(ctx, st, i, sl)
 		if err != nil {
-			return fmt.Errorf("фото из сообщения: %w", err)
+			return fmt.Errorf("слайд %d: %w", i+1, err)
 		}
-		photo = p
-	} else if st.Prompt != "" {
-		p, err := m.Gen.Generate(ctx, st.Prompt)
-		if err != nil {
+		path := m.imagePath(st.ID, i)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return err
 		}
+		if err := os.WriteFile(path, img, 0o640); err != nil {
+			return err
+		}
+		images = append(images, path)
+		att, err := m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
+		if err != nil {
+			return fmt.Errorf("превью: %w", err)
+		}
+		atts = append(atts, att)
+	}
+	st.Images, st.Image = images, ""
+	slides := ""
+	if len(images) > 1 {
+		slides = fmt.Sprintf(" · %d слайдов", len(images))
+	}
+	text := fmt.Sprintf("📝 Пост на одобрение · %s%s\n🕒 %s\n\n%s", st.ID, slides, m.fmtTime(st.PublishAt), st.Text)
+	return m.Msg.SendAttachment(ctx, m.AdminID, text, strings.Join(atts, ","), m.previewButtons(st))
+}
+
+func (m *Manager) renderSlide(ctx context.Context, st *State, i int, sl Slide) ([]byte, error) {
+	var photo []byte
+	if i == 0 && st.PhotoURL != "" {
+		p, err := m.download(ctx, st.PhotoURL)
+		if err != nil {
+			return nil, fmt.Errorf("фото из сообщения: %w", err)
+		}
+		photo = p
+	} else if sl.Prompt != "" {
+		p, err := m.Gen.Generate(ctx, sl.Prompt)
+		if err != nil {
+			return nil, err
+		}
 		photo = p
 	}
-	overlay, err := m.Content.Overlay(ctx, st.Overlay)
+	overlay, err := m.Content.Overlay(ctx, sl.Overlay)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	img, err := Compose(photo, overlay)
-	if err != nil {
-		return err
-	}
-	path := m.imagePath(st.ID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, img, 0o640); err != nil {
-		return err
-	}
-	st.Image = path
-	att, err := m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
-	if err != nil {
-		return fmt.Errorf("превью: %w", err)
-	}
-	text := fmt.Sprintf("📝 Пост на одобрение · %s\n🕒 %s\n\n%s", st.ID, m.fmtTime(st.PublishAt), st.Text)
-	return m.Msg.SendAttachment(ctx, m.AdminID, text, att, m.previewButtons(st))
+	return Compose(photo, overlay)
 }
 
 func (m *Manager) download(ctx context.Context, u string) ([]byte, error) {
@@ -417,14 +469,19 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 		if m.Wall == nil {
 			return "⚠️ Публикация недоступна: на сервере не задан VK_USER_TOKEN."
 		}
-		img, err := os.ReadFile(st.Image)
-		if err != nil {
-			return "Не нашёл картинку: " + err.Error()
+		var atts []string
+		for _, path := range st.imageList() {
+			img, err := os.ReadFile(path)
+			if err != nil {
+				return "Не нашёл картинку: " + err.Error()
+			}
+			a, err := m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
+			if err != nil {
+				return "⚠️ VK не принял фото: " + err.Error()
+			}
+			atts = append(atts, a)
 		}
-		att, err := m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
-		if err != nil {
-			return "⚠️ VK не принял фото: " + err.Error()
-		}
+		att := strings.Join(atts, ",")
 		var publishDate int64
 		if !immediately && st.PublishAt.After(m.now().Add(10*time.Minute)) {
 			publishDate = st.PublishAt.Unix()

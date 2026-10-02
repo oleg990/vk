@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -53,15 +54,19 @@ type fakeWall struct {
 	posts       int
 	publishDate int64
 	message     string
+	att         string
+	uploads     int
 }
 
 func (f *fakeWall) UploadWallPhoto(context.Context, int64, []byte) (string, error) {
-	return "photo-1_200", nil
+	f.uploads++
+	return fmt.Sprintf("photo-1_%d", 200+f.uploads), nil
 }
 func (f *fakeWall) WallPost(_ context.Context, _ int64, msg, att string, pd int64) (int64, error) {
 	f.posts++
 	f.publishDate = pd
 	f.message = msg
+	f.att = att
 	return 42, nil
 }
 
@@ -260,5 +265,21 @@ func TestUrgentCommand(t *testing.T) {
 	m.HandleAdmin(ctx, 1, "/очередь", nil)
 	if !strings.Contains(msg.last().text, "srochno-") {
 		t.Fatalf("list = %q", msg.last().text)
+	}
+}
+
+func TestCarouselSlides(t *testing.T) {
+	ctx := context.Background()
+	m, msg, wall, gen := newManager(t, Item{ID: "c1", PublishAt: now.Add(48 * time.Hour), Text: "Карусель", Slides: []Slide{
+		{Prompt: "city", Overlay: "posts/c1/01.png"}, {Overlay: "posts/c1/02.png"}, {Overlay: "posts/c1/03.png"},
+	}})
+	m.Tick(ctx)
+	pv := msg.last()
+	if gen.calls != 1 || msg.uploads != 3 || len(strings.Split(pv.att, ",")) != 3 || !strings.Contains(pv.text, "3 слайдов") {
+		t.Fatalf("gen=%d uploads=%d preview=%+v", gen.calls, msg.uploads, pv)
+	}
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ По расписанию"))
+	if wall.posts != 1 || wall.att != "photo-1_201,photo-1_202,photo-1_203" {
+		t.Fatalf("wall = %+v", wall)
 	}
 }

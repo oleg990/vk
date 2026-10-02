@@ -17,8 +17,15 @@ type Item struct {
 	ID        string    `json:"id"`
 	PublishAt time.Time `json:"publish_at"`
 	Text      string    `json:"text"`
-	Prompt    string    `json:"prompt"`  // запрос для FLUX на английском; пусто — фирменный фон
-	Overlay   string    `json:"overlay"` // путь к PNG 1080×1350 относительно content/
+	Prompt    string    `json:"prompt"`           // запрос для FLUX на английском; пусто — фирменный фон
+	Overlay   string    `json:"overlay"`          // путь к PNG 1080×1350 относительно content/
+	Slides    []Slide   `json:"slides,omitempty"` // карусель: если задано, Prompt/Overlay не нужны
+}
+
+// Slide — одна картинка карусели. Prompt пустой — фирменный фон.
+type Slide struct {
+	Prompt  string `json:"prompt,omitempty"`
+	Overlay string `json:"overlay,omitempty"`
 }
 
 // Content читает очередь постов (по умолчанию raw-файлы GitHub).
