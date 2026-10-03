@@ -118,7 +118,8 @@ type Manager struct {
 	Log       *slog.Logger
 	Now       func() time.Time
 
-	mu sync.Mutex
+	mu  sync.Mutex // состояние постов
+	pmu sync.Mutex // одна подготовка картинок за раз
 }
 
 // withCTA добавляет в пост ссылку «написать в сообщения группы» (vk.me открывает диалог с ботом).
@@ -240,31 +241,36 @@ func (m *Manager) Sync(ctx context.Context) error {
 
 // Process готовит картинки для новых постов и отправляет превью.
 func (m *Manager) Process(ctx context.Context) {
+	// Подготовка (фото, загрузка в VK) идёт без общей блокировки: кнопки и список запаса
+	// отвечают сразу, даже пока бот возится с картинками. pmu не даёт двум подготовкам идти разом.
+	m.pmu.Lock()
+	defer m.pmu.Unlock()
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	states, err := m.load(ctx)
+	m.mu.Unlock()
 	if err != nil {
 		m.Log.Error("autopost load", "err", err)
 		return
 	}
-	noTokenLogged := false
-	tried := 0
+	var todo []State
 	for _, st := range sorted(states) {
-		if st.Status != StatusNew {
-			continue
+		if st.Status == StatusNew {
+			todo = append(todo, *st)
 		}
-		if tried > 0 && m.UploadGap > 0 {
-			if tried >= 3 {
-				break // остальные — в следующем цикле: не держим бота занятым и не злим VK частыми загрузками
+	}
+	noTokenLogged := false
+	for n := range todo {
+		st := &todo[n]
+		if n > 0 && m.UploadGap > 0 {
+			if n >= 3 {
+				break // остальные — в следующем цикле: не злим VK частыми загрузками
 			}
 			time.Sleep(m.UploadGap)
 		}
-		tried++
 		if err := m.prepare(ctx, st); err != nil {
 			if errors.Is(err, ErrNoToken) {
-				// не ошибка поста: ждём, пока в .env появится HF_TOKEN
 				if !noTokenLogged {
-					m.Log.Warn("autopost: HF_TOKEN не задан, посты с фото ждут")
+					m.Log.Warn("autopost: ключ генератора не задан, посты с фото ждут")
 					noTokenLogged = true
 				}
 				continue
@@ -276,12 +282,22 @@ func (m *Manager) Process(ctx context.Context) {
 				st.Status = StatusError
 				m.notify(ctx, fmt.Sprintf("⚠️ Пост «%s»: не получилось сделать картинку.\n%s", st.ID, st.Error), "", m.buttons(st.ID, true))
 			}
-			continue
+		} else {
+			st.Status, st.Error, st.Attempts = StatusAwaiting, "", 0
 		}
-		st.Status, st.Error, st.Attempts = StatusAwaiting, "", 0
-	}
-	if err := m.save(ctx, states); err != nil {
-		m.Log.Error("autopost save", "err", err)
+		m.mu.Lock()
+		cur, err := m.load(ctx)
+		if err == nil {
+			// пока готовили, Олег мог отклонить или переделать пост — тогда не затираем
+			if c, ok := cur[st.ID]; ok && c.Status == StatusNew {
+				*c = *st
+				err = m.save(ctx, cur)
+			}
+		}
+		m.mu.Unlock()
+		if err != nil {
+			m.Log.Error("autopost save", "err", err)
+		}
 	}
 }
 
@@ -483,6 +499,12 @@ func (m *Manager) download(ctx context.Context, u string) ([]byte, error) {
 
 // previewButtons: для поста с будущей датой добавляет «⚡ Сейчас».
 func (m *Manager) previewButtons(st *State) *vk.Keyboard {
+	if m.OnDemand && st.PublishAt.IsZero() {
+		ok := vk.TextButton("✅ Опубликовать", payload("ap_now", st.ID), vk.ColorPositive)
+		redo := vk.TextButton("🔁 Другое фото", payload("ap_redo", st.ID), vk.ColorPrimary)
+		del := vk.TextButton("🗑 Удалить", payload("ap_no", st.ID), vk.ColorNegative)
+		return &vk.Keyboard{Inline: true, Buttons: [][]vk.Button{{ok}, {redo, del}}}
+	}
 	kb := m.buttons(st.ID, false)
 	if st.PublishAt.After(m.now().Add(10 * time.Minute)) {
 		now := vk.TextButton("⚡ Сейчас", payload("ap_now", st.ID), vk.ColorPositive)
@@ -556,12 +578,13 @@ func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl
 		m.notify(ctx, m.reject(ctx, id), "", nil)
 	case cmd == "ap_redo":
 		m.notify(ctx, m.redo(ctx, id), "", nil)
-		m.Process(ctx)
+		m.processSoon(ctx)
 	case m.OnDemand && (isMakePost(text) || cmd == "adm_post"):
 		m.notify(ctx, m.makeOne(ctx, text), "", nil)
 	case isMakePost(text) || cmd == "adm_post":
 		m.notify(ctx, m.makePosts(ctx, text), "", nil)
 	case cmd == "ap_pick":
+		m.notify(ctx, "⏳ Открываю пост — пришлю с картинками через несколько секунд…", "", nil)
 		if msg := m.pick(ctx, id); msg != "" {
 			m.notify(ctx, msg, "", nil)
 		}
@@ -703,6 +726,9 @@ func (m *Manager) reject(ctx context.Context, id string) string {
 			return "Пост уже " + statusTitle[st.Status] + " — удалить можно в группе VK."
 		}
 		st.Status = StatusRejected
+		if m.OnDemand {
+			return "🗑 Пост удалён из запаса: " + headline(st.Text)
+		}
 		return "❌ Пост «" + id + "» отклонён."
 	})
 }

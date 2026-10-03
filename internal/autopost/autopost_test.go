@@ -607,3 +607,22 @@ func TestOnDemandEmptyStockWaitsForNewPost(t *testing.T) {
 		t.Fatalf("new post must be sent at once: %d %q", msg.previews(), msg.last().text)
 	}
 }
+
+func TestOnDemandDeleteFromStock(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, _ := newManager(t, Item{ID: "a", Text: "Пост А"}, Item{ID: "b", Text: "Пост Б"})
+	m.OnDemand = true
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_pick", "id": "a"})
+	pv := msg.last()
+	if btn(pv.kb, "🗑 Удалить") == nil || btn(pv.kb, "✅ Опубликовать") == nil {
+		t.Fatalf("preview buttons: %+v", pv)
+	}
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "🗑 Удалить"))
+	if !strings.Contains(msg.last().text, "удалён из запаса") {
+		t.Fatalf("reply: %q", msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_queue"})
+	if strings.Contains(msg.last().text, "Пост А") || !strings.Contains(msg.last().text, "Пост Б") {
+		t.Fatalf("deleted post must leave the stock: %q", msg.last().text)
+	}
+}
