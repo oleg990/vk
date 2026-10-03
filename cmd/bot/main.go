@@ -67,6 +67,7 @@ func run(log *slog.Logger) error {
 		GroupID: cfg.VKGroupID, AdminID: cfg.AdminVKID, Msg: client,
 		Content:   autopost.Content{BaseURL: cfg.ContentURL, Extra: cfg.ContentExtra, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		UploadGap: 3 * time.Second,
+		OnDemand:  true, // без расписания: посты по кнопке «Сделай пост», публикация сразу после одобрения
 		Photos: autopost.Stocks{
 			autopost.Pixabay{URL: "https://pixabay.com", Key: cfg.PixabayKey, HTTP: &http.Client{Timeout: 60 * time.Second}},
 			autopost.Pexels{URL: "https://api.pexels.com", Key: cfg.PexelsKey, HTTP: &http.Client{Timeout: 60 * time.Second}},

@@ -104,6 +104,11 @@ type Manager struct {
 	// Writer запускает Claude, который делает посты по команде «сделай пост» (nil — команда недоступна)
 	Writer   PostWriter
 	lastFire time.Time
+	// OnDemand — без расписания: посты из очереди лежат в запасе и выдаются по кнопке «Сделай пост»
+	// или из списка «Очередь постов»; «✅ Опубликовать» публикует сразу.
+	OnDemand bool
+	wantNew  bool            // ждём новые посты от Claude, чтобы сразу показать первый
+	known    map[string]bool // id постов в очереди на момент запуска Claude
 	// UploadGap — пауза между загрузками фото в VK (VK режет частые загрузки)
 	UploadGap time.Duration
 	Store     storage.Store
@@ -189,6 +194,9 @@ func (m *Manager) Tick(ctx context.Context) {
 	if err := m.Sync(ctx); err != nil {
 		m.Log.Warn("autopost sync", "err", err)
 	}
+	if m.OnDemand {
+		m.checkNew(ctx)
+	}
 	m.Process(ctx)
 }
 
@@ -209,7 +217,7 @@ func (m *Manager) Sync(ctx context.Context) error {
 			continue
 		}
 		st, ok := states[it.ID]
-		if it.Draft && !ok {
+		if !ok && (it.Draft || m.OnDemand) {
 			continue // лежит в запасе до кнопки «сделай пост»
 		}
 		if ok && st.FromDraft {
@@ -549,8 +557,21 @@ func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl
 	case cmd == "ap_redo":
 		m.notify(ctx, m.redo(ctx, id), "", nil)
 		m.Process(ctx)
+	case m.OnDemand && (isMakePost(text) || cmd == "adm_post"):
+		m.notify(ctx, m.makeOne(ctx, text), "", nil)
 	case isMakePost(text) || cmd == "adm_post":
 		m.notify(ctx, m.makePosts(ctx, text), "", nil)
+	case cmd == "ap_pick":
+		if msg := m.pick(ctx, id); msg != "" {
+			m.notify(ctx, msg, "", nil)
+		}
+	case m.OnDemand && (strings.EqualFold(strings.TrimSpace(text), "/очередь") || cmd == "adm_queue" || cmd == "ap_page"):
+		page := 0
+		if cmd == "ap_page" {
+			fmt.Sscan(id, &page)
+		}
+		msg, kb := m.stockList(ctx, page)
+		m.notify(ctx, msg, "", kb)
 	case strings.EqualFold(strings.TrimSpace(text), "/очередь") || cmd == "adm_queue":
 		m.notify(ctx, m.list(ctx), "", nil)
 	case strings.EqualFold(strings.TrimSpace(text), "/обновить") || cmd == "adm_refresh":

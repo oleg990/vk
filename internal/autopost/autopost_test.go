@@ -523,3 +523,87 @@ func TestWithCTA(t *testing.T) {
 		t.Fatal("no group id — no cta")
 	}
 }
+
+func TestOnDemandOnePostAndPublishNow(t *testing.T) {
+	ctx := context.Background()
+	m, msg, wall, _ := newManager(t,
+		Item{ID: "a", PublishAt: now.Add(72 * time.Hour), Text: "Пост А"},
+		Item{ID: "b", Text: "Пост Б", Draft: true},
+	)
+	m.OnDemand = true
+	m.Tick(ctx)
+	if msg.previews() != 0 {
+		t.Fatal("on-demand: nothing is sent without the button")
+	}
+	w := &fakeWriter{}
+	m.Writer = w
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_post"})
+	if msg.previews() != 1 {
+		t.Fatalf("exactly one post must be sent, got %d", msg.previews())
+	}
+	var pv sentMsg
+	for _, s := range msg.sent {
+		if strings.Contains(s.text, "на одобрение") {
+			pv = s
+		}
+	}
+	if btn(pv.kb, "✅ Опубликовать") == nil || btn(pv.kb, "✅ По расписанию") != nil {
+		t.Fatalf("buttons: %+v", pv.kb)
+	}
+	if len(w.wishes) != 1 { // в запасе осталось < 3 — пополняем
+		t.Fatalf("refill expected: %q", w.wishes)
+	}
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ Опубликовать"))
+	if wall.posts != 1 || wall.publishDate != 0 {
+		t.Fatalf("must publish now: posts=%d pd=%d", wall.posts, wall.publishDate)
+	}
+}
+
+func TestOnDemandStockListAndPick(t *testing.T) {
+	ctx := context.Background()
+	var items []Item
+	for i := 0; i < 11; i++ {
+		items = append(items, Item{ID: fmt.Sprintf("p%02d", i), Text: fmt.Sprintf("Заголовок %d\nтекст", i)})
+	}
+	m, msg, _, _ := newManager(t, items...)
+	m.OnDemand = true
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_queue"})
+	l := msg.last()
+	if !strings.Contains(l.text, "В запасе 11 постов") || !strings.Contains(l.text, "Заголовок 10") || btn(l.kb, "Ещё ▶") == nil {
+		t.Fatalf("list: %q", l.text)
+	}
+	m.HandleAdmin(ctx, 1, "", btn(l.kb, "Ещё ▶"))
+	if !strings.Contains(msg.last().text, "стр. 2 из 2") {
+		t.Fatalf("page 2: %q", msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_pick", "id": "p03"})
+	if !strings.Contains(msg.last().text, "Заголовок 3") || msg.previews() != 1 {
+		t.Fatalf("pick: %q", msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_queue"})
+	if !strings.Contains(msg.last().text, "Заголовок 3 👀") && !strings.Contains(msg.last().text, "Заголовок 3 👀") {
+		t.Fatalf("shown mark: %q", msg.last().text)
+	}
+}
+
+func TestOnDemandEmptyStockWaitsForNewPost(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, _ := newManager(t)
+	m.OnDemand = true
+	w := &fakeWriter{}
+	m.Writer = w
+	m.HandleAdmin(ctx, 1, "сделай пост про ДСК", nil)
+	if len(w.wishes) != 1 || w.wishes[0] != "про ДСК" || !strings.Contains(msg.last().text, "Первый пришлю") {
+		t.Fatalf("fire: %q reply=%q", w.wishes, msg.last().text)
+	}
+	m.Tick(ctx)
+	if msg.previews() != 0 {
+		t.Fatal("nothing new yet")
+	}
+	c := m.Content.(*fakeContent)
+	c.items = append(c.items, Item{ID: "new1", Text: "Свежий пост про ДСК", Draft: true})
+	m.Tick(ctx)
+	if msg.previews() != 1 || !strings.Contains(msg.last().text, "Свежий пост") {
+		t.Fatalf("new post must be sent at once: %d %q", msg.previews(), msg.last().text)
+	}
+}
