@@ -215,8 +215,10 @@ func (b *Bot) Handle(ctx context.Context, in Incoming) {
 			b.sendAdminPanel(ctx, in.UserID, "Рассылка отменена.")
 			return
 		}
-		b.sendMailing(ctx, in.UserID, text)
 		b.dropSession(ctx, in.UserID)
+		b.reply(ctx, in.UserID, "⏳ Рассылка запущена, отчёт пришлю сюда.", nil)
+		// В фоне: получателей может быть много, не блокируем обработку сообщений бота.
+		go b.sendMailing(context.WithoutCancel(ctx), in.UserID, text)
 		return
 	}
 	b.advance(ctx, s, in, text)
@@ -335,10 +337,17 @@ func (b *Bot) sendMailing(ctx context.Context, adminID int64, text string) {
 		return
 	}
 
-	// Send message to each user
+	// Send message to each user. Пауза между отправками — у VK лимит на
+	// количество запросов в секунду, на большой базе получателей легко
+	// попасть в флуд-контроль.
 	successCount := 0
 	failCount := 0
+	first := true
 	for userID := range users {
+		if !first {
+			time.Sleep(350 * time.Millisecond)
+		}
+		first = false
 		if err := b.send.Send(ctx, userID, text, nil); err != nil {
 			b.log.Error("send mailing", "user", userID, "err", err)
 			failCount++

@@ -670,7 +670,7 @@ func (m *Manager) loc() *time.Location {
 func (m *Manager) approve(ctx context.Context, id string, immediately bool) string {
 	return m.withState(ctx, id, func(st *State) string {
 		switch st.Status {
-		case StatusScheduled, StatusPublished:
+		case StatusScheduled, StatusPublished, StatusManual:
 			return "Этот пост уже " + statusTitle[st.Status] + "."
 		case StatusAwaiting:
 		default:
@@ -728,7 +728,7 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 
 func (m *Manager) reject(ctx context.Context, id string) string {
 	return m.withState(ctx, id, func(st *State) string {
-		if st.Status == StatusScheduled || st.Status == StatusPublished {
+		if st.Status == StatusScheduled || st.Status == StatusPublished || st.Status == StatusManual {
 			return "Пост уже " + statusTitle[st.Status] + " — удалить можно в группе VK."
 		}
 		st.Status = StatusRejected
@@ -741,7 +741,7 @@ func (m *Manager) reject(ctx context.Context, id string) string {
 
 func (m *Manager) redo(ctx context.Context, id string) string {
 	return m.withState(ctx, id, func(st *State) string {
-		if st.Status == StatusScheduled || st.Status == StatusPublished {
+		if st.Status == StatusScheduled || st.Status == StatusPublished || st.Status == StatusManual {
 			return "Пост уже " + statusTitle[st.Status] + "."
 		}
 		st.Status, st.Attempts, st.Error = StatusNew, 0, ""

@@ -73,7 +73,7 @@ func (m *Manager) pick(ctx context.Context, id string) string {
 	}
 	st, ok := states[id]
 	switch {
-	case ok && (st.Status == StatusPublished || st.Status == StatusScheduled):
+	case ok && (st.Status == StatusPublished || st.Status == StatusScheduled || st.Status == StatusManual):
 		m.mu.Unlock()
 		return "Этот пост уже " + statusTitle[st.Status] + "."
 	case ok:
