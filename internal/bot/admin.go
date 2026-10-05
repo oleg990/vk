@@ -2,7 +2,9 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"realty-bot/internal/autopost"
 	"realty-bot/internal/vk"
 	"sort"
 	"strconv"
@@ -274,28 +276,40 @@ func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
 
 // listPublishedPosts returns a formatted list of published posts.
 func (b *Bot) listPublishedPosts(ctx context.Context) string {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	// Get autopost queue from storage
+	raw, ok, err := b.store.GetSetting(ctx, "autopost")
+	if err != nil || !ok {
+		return "История постов не найдена."
+	}
 
+	// Parse posts
+	var posts map[string]autopost.State
+	if err := json.Unmarshal(raw, &posts); err != nil {
+		return "Ошибка чтения истории: " + err.Error()
+	}
+
+	// Collect published posts
 	var published []struct {
+		id     string
 		date   time.Time
 		text   string
 		postID int64
 	}
 
-	// Iterate through autopost queue to find published items
-	for _, post := range b.autopost {
-		if post.Status == "published" && post.VKPostID > 0 {
+	for id, post := range posts {
+		if post.Status == autopost.StatusPublished && post.VKPostID > 0 {
 			// Extract preview text (first 100 chars)
 			preview := post.Text
 			if len(preview) > 100 {
 				preview = preview[:100] + "…"
 			}
 			published = append(published, struct {
+				id     string
 				date   time.Time
 				text   string
 				postID int64
 			}{
+				id:     id,
 				date:   post.PublishAt,
 				text:   preview,
 				postID: post.VKPostID,
@@ -316,11 +330,11 @@ func (b *Bot) listPublishedPosts(ctx context.Context) string {
 	sb.WriteString("📧 История опубликованных постов:\n\n")
 	for i, p := range published {
 		if i == 20 {
-			fmt.Fprintf(&sb, "…и ещё %d", len(published)-20)
+			fmt.Fprintf(&sb, "…и ещё %d\n", len(published)-20)
 			break
 		}
 		dateStr := p.date.In(b.opt.Location).Format("02.01 15:04")
-		fmt.Fprintf(&sb, "#%d %s\n%s\n\n", i+1, dateStr, p.text)
+		fmt.Fprintf(&sb, "#%d %s | vk.com/wall-%d\n%s\n\n", i+1, dateStr, p.postID, p.text)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

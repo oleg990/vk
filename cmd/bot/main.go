@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -114,12 +113,6 @@ func run(log *slog.Logger) error {
 		if msg.PeerID != msg.FromID || msg.FromID <= 0 { // только личные сообщения от людей
 			return
 		}
-		if msg.FromID == cfg.AdminVKID && isAnalytics(msg.Text, msg.PayloadMap()) {
-			if err := client.Send(ctx, msg.FromID, rep.Report(ctx), bot.AdminKeyboard()); err != nil {
-				log.Error("send analytics", "err", err)
-			}
-			return
-		}
 		if ap.HandleAdmin(ctx, msg.FromID, msg.Text, msg.PayloadMap(), msg.PhotoURLs()...) {
 			return
 		}
@@ -128,10 +121,4 @@ func run(log *slog.Logger) error {
 			Payload: msg.PayloadMap(), Photos: msg.PhotoURLs(),
 		})
 	})
-}
-
-// isAnalytics — кнопка «📈 Аналитика» или команда /аналитика.
-func isAnalytics(text string, payload map[string]string) bool {
-	t := strings.ToLower(strings.TrimSpace(text))
-	return payload["cmd"] == bot.AdmAnalytics || t == "/аналитика" || t == "аналитика"
 }
