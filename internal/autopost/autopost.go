@@ -28,14 +28,16 @@ const (
 	StatusNew       = "new"       // ждёт подготовки картинки
 	StatusAwaiting  = "awaiting"  // превью отправлено, ждём решения
 	StatusScheduled = "scheduled" // отложенная запись в VK создана
-	StatusPublished = "published" // опубликован
+	StatusPublished = "published" // опубликован автоматически (через VK_USER_TOKEN)
+	StatusManual    = "manual"    // отмечен опубликованным вручную (нет VK_USER_TOKEN)
 	StatusRejected  = "rejected"
 	StatusError     = "error" // не удалось сделать картинку
 )
 
 var statusTitle = map[string]string{
 	StatusNew: "🛠 готовлю", StatusAwaiting: "⏳ ждёт одобрения", StatusScheduled: "🕒 запланирован",
-	StatusPublished: "✅ опубликован", StatusRejected: "❌ отклонён", StatusError: "⚠️ ошибка",
+	StatusPublished: "✅ опубликован", StatusManual: "✍️ опубликован вручную",
+	StatusRejected: "❌ отклонён", StatusError: "⚠️ ошибка",
 }
 
 type State struct {
@@ -675,7 +677,11 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 			return "Пост ещё не готов: " + statusTitle[st.Status]
 		}
 		if m.Wall == nil {
-			return "⚠️ Публикация недоступна: на сервере не задан VK_USER_TOKEN."
+			// Ручной режим: нет VK_USER_TOKEN — публикуем сами в группе,
+			// текст и фото уже прислали в превью. Отмечаем пост как обработанный.
+			st.Status = StatusManual
+			st.PublishAt = m.now()
+			return "✍️ Текст и фото — в сообщении выше. Опубликуйте их вручную в группе VK.\n\nПост отмечен как обработанный и больше не будет показан в очереди."
 		}
 		atts := st.Atts
 		if len(atts) != len(st.imageList()) {

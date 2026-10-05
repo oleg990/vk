@@ -301,9 +301,9 @@ func TestAdminPanel(t *testing.T) {
 	if fs.last().kb == nil || fs.last().kb.Buttons[0][0].Action.Label != "📝 Сделай пост" {
 		t.Fatalf("admin must get the panel: %+v", fs.last())
 	}
-	b.Handle(ctx, Incoming{UserID: admin, Text: "📊 Статистика", Payload: map[string]string{"cmd": admStats}})
-	if !strings.Contains(fs.last().text, "всего") {
-		t.Fatalf("stats: %q", fs.last().text)
+	b.Handle(ctx, Incoming{UserID: admin, Text: "📧 История постов", Payload: map[string]string{"cmd": admHistory}})
+	if !strings.Contains(fs.last().text, "История") {
+		t.Fatalf("history: %q", fs.last().text)
 	}
 	b.Handle(ctx, Incoming{UserID: admin, Text: "👀 Меню клиента", Payload: map[string]string{"cmd": admClient}})
 	if fs.last().kb.Buttons[0][0].Action.Label != btnBuy {

@@ -289,33 +289,39 @@ func (b *Bot) listPublishedPosts(ctx context.Context) string {
 		return "Ошибка чтения истории: " + err.Error()
 	}
 
-	// Collect published posts
+	// Collect published posts (авто через VK_USER_TOKEN и отмеченные вручную)
 	var published []struct {
 		id     string
 		date   time.Time
 		text   string
 		postID int64
+		manual bool
 	}
 
 	for id, post := range posts {
-		if post.Status == autopost.StatusPublished && post.VKPostID > 0 {
-			// Extract preview text (first 100 chars)
-			preview := post.Text
-			if len(preview) > 100 {
-				preview = preview[:100] + "…"
-			}
-			published = append(published, struct {
-				id     string
-				date   time.Time
-				text   string
-				postID int64
-			}{
-				id:     id,
-				date:   post.PublishAt,
-				text:   preview,
-				postID: post.VKPostID,
-			})
+		switch post.Status {
+		case autopost.StatusPublished, autopost.StatusManual:
+		default:
+			continue
 		}
+		// Extract preview text (first 100 chars)
+		preview := post.Text
+		if len(preview) > 100 {
+			preview = preview[:100] + "…"
+		}
+		published = append(published, struct {
+			id     string
+			date   time.Time
+			text   string
+			postID int64
+			manual bool
+		}{
+			id:     id,
+			date:   post.PublishAt,
+			text:   preview,
+			postID: post.VKPostID,
+			manual: post.Status == autopost.StatusManual,
+		})
 	}
 
 	if len(published) == 0 {
@@ -328,14 +334,18 @@ func (b *Bot) listPublishedPosts(ctx context.Context) string {
 	})
 
 	var sb strings.Builder
-	sb.WriteString("📧 История опубликованных постов:\n\n")
+	sb.WriteString("📧 История постов:\n\n")
 	for i, p := range published {
 		if i == 20 {
 			fmt.Fprintf(&sb, "…и ещё %d\n", len(published)-20)
 			break
 		}
 		dateStr := p.date.In(b.opt.Location).Format("02.01 15:04")
-		fmt.Fprintf(&sb, "#%d %s | vk.com/wall-%d\n%s\n\n", i+1, dateStr, p.postID, p.text)
+		mark := fmt.Sprintf("vk.com/wall-%d", p.postID)
+		if p.manual || p.postID == 0 {
+			mark = "✍️ вручную"
+		}
+		fmt.Fprintf(&sb, "#%d %s | %s\n%s\n\n", i+1, dateStr, mark, p.text)
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }

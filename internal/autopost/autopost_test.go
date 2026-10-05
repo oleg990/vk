@@ -221,11 +221,11 @@ func TestNoUserTokenAndListAndNonAdmin(t *testing.T) {
 	m.Wall = nil
 	m.Tick(ctx)
 	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_ok", "id": "p1"})
-	if !strings.Contains(msg.last().text, "VK_USER_TOKEN") {
+	if !strings.Contains(msg.last().text, "вручную") {
 		t.Fatalf("reply = %q", msg.last().text)
 	}
 	m.HandleAdmin(ctx, 1, "/очередь", nil)
-	if !strings.Contains(msg.last().text, "p1 · ⏳ ждёт одобрения") {
+	if !strings.Contains(msg.last().text, "p1 · ✍️ опубликован вручную") {
 		t.Fatalf("list = %q", msg.last().text)
 	}
 	if m.HandleAdmin(ctx, 999, "/очередь", nil) {
