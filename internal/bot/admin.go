@@ -19,6 +19,7 @@ const adminHelp = `Кнопки панели — внизу. Текстом мо
 меню — показать панель
 
 Команды:
+/статистика — заявки за сегодня, 7 и 30 дней по видам
 /заявки [дней] — все заявки (по умолчанию за сутки)
 /продавцы [дней] — продавцы (по умолчанию 30 дней)
 /покупатели [дней] — покупатели (по умолчанию 30 дней)
@@ -221,6 +222,7 @@ const (
 	admRefresh = "adm_refresh"
 	admMailing = "adm_mailing"
 	admHistory = "adm_history"
+	admStats   = "adm_stats"
 	admLeads   = "adm_leads"
 	admSellers = "adm_sellers"
 	admBuyers  = "adm_buyers"
@@ -234,9 +236,9 @@ func AdminKeyboard() *vk.Keyboard {
 	return &vk.Keyboard{Buttons: [][]vk.Button{
 		{btn("📝 Сделай пост", admPost, vk.ColorPositive), btn("⚡ Срочный пост", admUrgent, vk.ColorNegative)},
 		{btn("📋 Очередь постов", admQueue, vk.ColorPrimary), btn("🔄 Обновить", admRefresh, vk.ColorSecondary)},
-		{btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary), btn("📧 История постов", admHistory, vk.ColorPrimary)},
+		{btn("📊 Статистика", admStats, vk.ColorPrimary), btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary)},
+		{btn("📧 История постов", admHistory, vk.ColorPrimary), btn("📬 Рассылка", admMailing, vk.ColorPositive)},
 		{btn("💰 Продавцы", admSellers, vk.ColorSecondary), btn("🏠 Покупатели", admBuyers, vk.ColorSecondary)},
-		{btn("📬 Рассылка", admMailing, vk.ColorPositive)},
 		{btn("👀 Меню клиента", admClient, vk.ColorSecondary), btn("❓ Помощь", admHelp, vk.ColorSecondary)},
 	}}
 }
@@ -250,6 +252,8 @@ func (b *Bot) sendAdminPanel(ctx context.Context, peer int64, text string) {
 func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
 	var out string
 	switch cmd {
+	case admStats:
+		out = b.stats(ctx)
 	case admLeads:
 		out = b.listLeads(ctx, "", 1)
 	case admSellers:
