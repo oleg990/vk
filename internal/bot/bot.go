@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strings"
@@ -207,6 +208,17 @@ func (b *Bot) Handle(ctx context.Context, in Incoming) {
 		b.sendMenu(ctx, in.UserID, "Выберите, что вас интересует 👇")
 		return
 	}
+	// Handle mailing mode
+	if s.Flow == "mailing" {
+		if norm := normalize(text); norm == "отмена" {
+			b.dropSession(ctx, in.UserID)
+			b.sendAdminPanel(ctx, in.UserID, "Рассылка отменена.")
+			return
+		}
+		b.sendMailing(ctx, in.UserID, text)
+		b.dropSession(ctx, in.UserID)
+		return
+	}
 	b.advance(ctx, s, in, text)
 }
 
@@ -298,4 +310,45 @@ func (b *Bot) nightNotice(ctx context.Context, peer int64) {
 	b.nightSeen[peer] = now
 	b.nightMu.Unlock()
 	b.reply(ctx, peer, "🌙 Сейчас ночь — Олег ответит завтра с 9:00. А пока можно пройти квиз: ответьте на несколько вопросов, и я сразу пойму, чем помочь.", nil)
+}
+
+// sendMailing sends a message to all users who have submitted leads.
+func (b *Bot) sendMailing(ctx context.Context, adminID int64, text string) {
+	// Get all leads to find unique users
+	leads, err := b.store.ListLeads(ctx, "", time.Time{})
+	if err != nil {
+		b.log.Error("list leads for mailing", "err", err)
+		b.reply(ctx, adminID, "Ошибка: не удалось получить список получателей.", AdminKeyboard())
+		return
+	}
+
+	// Extract unique user IDs from leads
+	users := make(map[int64]bool)
+	for _, lead := range leads {
+		if lead.UserID > 0 {
+			users[lead.UserID] = true
+		}
+	}
+
+	if len(users) == 0 {
+		b.reply(ctx, adminID, "Нет получателей для рассылки.", AdminKeyboard())
+		return
+	}
+
+	// Send message to each user
+	successCount := 0
+	failCount := 0
+	for userID := range users {
+		if err := b.send.Send(ctx, userID, text, nil); err != nil {
+			b.log.Error("send mailing", "user", userID, "err", err)
+			failCount++
+		} else {
+			successCount++
+		}
+	}
+
+	// Send summary to admin
+	summary := fmt.Sprintf("✅ Рассылка завершена!\n\nУспешно: %d\nОшибок: %d\nВсего получателей: %d",
+		successCount, failCount, len(users))
+	b.reply(ctx, adminID, summary, AdminKeyboard())
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"realty-bot/internal/autopost"
+	"realty-bot/internal/storage"
 	"realty-bot/internal/vk"
 	"sort"
 	"strconv"
@@ -258,7 +259,7 @@ func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
 	case admHistory:
 		out = b.listPublishedPosts(ctx)
 	case admMailing:
-		out = b.prepareMailingList(ctx)
+		out = b.prepareMailingList(ctx, peer)
 	case admHelp:
 		out = adminHelp
 	case admUrgent:
@@ -340,7 +341,19 @@ func (b *Bot) listPublishedPosts(ctx context.Context) string {
 }
 
 // prepareMailingList returns a prompt for mailing or sends mailing to all users.
-func (b *Bot) prepareMailingList(ctx context.Context) string {
+func (b *Bot) prepareMailingList(ctx context.Context, peer int64) string {
+	// Create a session to track that admin is in mailing mode
+	s := &storage.Session{
+		UserID:    peer,
+		Flow:      "mailing",
+		Step:      0,
+		Answers:   map[string]string{},
+		UpdatedAt: time.Now(),
+	}
+	if err := b.store.SaveSession(ctx, s); err != nil {
+		b.log.Error("save mailing session", "err", err)
+		return "Ошибка: не удалось начать рассылку."
+	}
 	return `📬 Рассылка всем клиентам
 
 Напишите сообщение одним текстом, и оно будет отправлено всем пользователям, которые оставляли заявки.
