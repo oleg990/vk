@@ -16,7 +16,6 @@ const adminHelp = `Кнопки панели — внизу. Текстом мо
 меню — показать панель
 
 Команды:
-/статистика — заявки за сегодня, 7 и 30 дней по видам
 /заявки [дней] — все заявки (по умолчанию за сутки)
 /продавцы [дней] — продавцы (по умолчанию 30 дней)
 /покупатели [дней] — покупатели (по умолчанию 30 дней)
@@ -28,7 +27,6 @@ const adminHelp = `Кнопки панели — внизу. Текстом мо
 /удалить_цену Район
 /очередь — все посты в запасе: нажмите номер, чтобы открыть и одобрить
 /срочно Текст — внеочередной пост (можно приложить фото)
-/аналитика — просмотры, реакции, охват, заявки и что публиковать (в понедельник в 10:00 приходит сам)
 /обновить — забрать новые посты из очереди сейчас
 /помощь — этот список`
 
@@ -218,14 +216,13 @@ const (
 	admUrgent  = "adm_urgent"
 	admQueue   = "adm_queue"
 	admRefresh = "adm_refresh"
-	admStats   = "adm_stats"
-	// AdmAnalytics — кнопка «Аналитика»; её обрабатывает main (нужен доступ к статистике VK)
-	AdmAnalytics = "adm_analytics"
-	admLeads     = "adm_leads"
-	admSellers   = "adm_sellers"
-	admBuyers    = "adm_buyers"
-	admClient    = "adm_client"
-	admHelp      = "adm_help"
+	admMailing = "adm_mailing"
+	admHistory = "adm_history"
+	admLeads   = "adm_leads"
+	admSellers = "adm_sellers"
+	admBuyers  = "adm_buyers"
+	admClient  = "adm_client"
+	admHelp    = "adm_help"
 )
 
 // AdminKeyboard — постоянная клавиатура Олега вместо клиентского меню.
@@ -234,9 +231,9 @@ func AdminKeyboard() *vk.Keyboard {
 	return &vk.Keyboard{Buttons: [][]vk.Button{
 		{btn("📝 Сделай пост", admPost, vk.ColorPositive), btn("⚡ Срочный пост", admUrgent, vk.ColorNegative)},
 		{btn("📋 Очередь постов", admQueue, vk.ColorPrimary), btn("🔄 Обновить", admRefresh, vk.ColorSecondary)},
-		{btn("📊 Статистика", admStats, vk.ColorPrimary), btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary)},
+		{btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary), btn("📧 История постов", admHistory, vk.ColorPrimary)},
 		{btn("💰 Продавцы", admSellers, vk.ColorSecondary), btn("🏠 Покупатели", admBuyers, vk.ColorSecondary)},
-		{btn("📈 Аналитика", AdmAnalytics, vk.ColorPrimary)},
+		{btn("📬 Рассылка", admMailing, vk.ColorPositive)},
 		{btn("👀 Меню клиента", admClient, vk.ColorSecondary), btn("❓ Помощь", admHelp, vk.ColorSecondary)},
 	}}
 }
@@ -250,14 +247,16 @@ func (b *Bot) sendAdminPanel(ctx context.Context, peer int64, text string) {
 func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
 	var out string
 	switch cmd {
-	case admStats:
-		out = b.stats(ctx)
 	case admLeads:
 		out = b.listLeads(ctx, "", 1)
 	case admSellers:
 		out = b.listLeads(ctx, flowSell, 30)
 	case admBuyers:
 		out = b.listLeads(ctx, flowBuy, 30)
+	case admHistory:
+		out = b.listPublishedPosts(ctx)
+	case admMailing:
+		out = b.prepareMailingList(ctx)
 	case admHelp:
 		out = adminHelp
 	case admUrgent:
@@ -271,4 +270,68 @@ func (b *Bot) adminButton(ctx context.Context, peer int64, cmd string) bool {
 	}
 	b.reply(ctx, peer, out, AdminKeyboard())
 	return true
+}
+
+// listPublishedPosts returns a formatted list of published posts.
+func (b *Bot) listPublishedPosts(ctx context.Context) string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	var published []struct {
+		date   time.Time
+		text   string
+		postID int64
+	}
+
+	// Iterate through autopost queue to find published items
+	for _, post := range b.autopost {
+		if post.Status == "published" && post.VKPostID > 0 {
+			// Extract preview text (first 100 chars)
+			preview := post.Text
+			if len(preview) > 100 {
+				preview = preview[:100] + "…"
+			}
+			published = append(published, struct {
+				date   time.Time
+				text   string
+				postID int64
+			}{
+				date:   post.PublishAt,
+				text:   preview,
+				postID: post.VKPostID,
+			})
+		}
+	}
+
+	if len(published) == 0 {
+		return "История постов пока пуста."
+	}
+
+	// Sort by date descending (newest first)
+	sort.Slice(published, func(i, j int) bool {
+		return published[i].date.After(published[j].date)
+	})
+
+	var sb strings.Builder
+	sb.WriteString("📧 История опубликованных постов:\n\n")
+	for i, p := range published {
+		if i == 20 {
+			fmt.Fprintf(&sb, "…и ещё %d", len(published)-20)
+			break
+		}
+		dateStr := p.date.In(b.opt.Location).Format("02.01 15:04")
+		fmt.Fprintf(&sb, "#%d %s\n%s\n\n", i+1, dateStr, p.text)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+// prepareMailingList returns a prompt for mailing or sends mailing to all users.
+func (b *Bot) prepareMailingList(ctx context.Context) string {
+	return `📬 Рассылка всем клиентам
+
+Напишите сообщение одним текстом, и оно будет отправлено всем пользователям, которые оставляли заявки.
+
+Пример: Уважаемые клиенты! У нас новая подборка объектов...
+
+Для отмены напишите "отмена".`
 }
