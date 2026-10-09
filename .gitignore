@@ -4,3 +4,4 @@ data/
 *.tmp
 __pycache__/
 *.pyc
+deploy/realty-bot
