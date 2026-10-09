@@ -377,7 +377,9 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 			return fmt.Errorf("превью: %w", err)
 		}
 		inGroup = inGroup && wall
-		atts = append(atts, att)
+		if att != "" {
+			atts = append(atts, att)
+		}
 	}
 	st.Images, st.Image, st.Rerender = images, "", false
 	st.Atts = nil
@@ -392,16 +394,30 @@ func (m *Manager) prepare(ctx context.Context, st *State) error {
 	if st.Fallback != "" {
 		text = "⚠️ Фото не сгенерировалось, обложка на фирменном фоне. «🔁 Другое фото» — попробовать ещё раз.\nПричина: " + st.Fallback + "\n\n" + text
 	}
-	return m.Msg.SendAttachment(ctx, m.AdminID, text, strings.Join(atts, ","), m.previewButtons(st))
+	// Если фото не загружены в VK (нет VK_USER_TOKEN), добавляем примечание и кнопку поделиться
+	if len(atts) == 0 && len(images) > 0 {
+		text = "ℹ️ Фото не загружены в VK (нет доступа). Нажмите кнопку ниже чтобы поделиться, или сохраните и постьте вручную.\n\n" + text
+	}
+	attString := strings.Join(atts, ",")
+	return m.Msg.SendAttachment(ctx, m.AdminID, text, attString, m.previewButtons(st))
 }
 
-// uploadPreview: превью — фото в личные сообщения ключом сообщества (так VK их точно показывает);
-// если ключу сообщества не хватает прав — загрузка в альбом группы ключом пользователя.
+// uploadPreview: превью — фото в личные сообщения ключом сообщества.
+// Если не получилось и нет VK_USER_TOKEN, просто возвращаем пустое значение — превью отправится без фото ID,
+// но текст и кнопки всё равно придут Олегу (он сможет сохранить картинки и постить вручную).
 func (m *Manager) uploadPreview(ctx context.Context, img []byte) (att string, wall bool, err error) {
 	att, err = m.Msg.UploadMessagePhoto(ctx, m.AdminID, img)
-	if err == nil || m.Wall == nil {
-		return att, false, err
+	if err == nil {
+		return att, false, nil
 	}
+	// Ошибка загрузки в сообщения
+	if m.Wall == nil {
+		// VK_USER_TOKEN не задан — не можем загрузить в стену.
+		// Для OnDemand режима это нормально: отправим превью без ID фото, текст и кнопки придут.
+		m.Log.Warn("autopost: фото не загружено и нет VK_USER_TOKEN", "err", err)
+		return "", false, nil // nil error — превью отправится без фото
+	}
+	// Есть VK_USER_TOKEN — пробуем загрузить в альбом стены
 	m.Log.Warn("autopost: фото в сообщения не загрузилось, пробую через группу", "err", err)
 	att, err = m.Wall.UploadWallPhoto(ctx, m.GroupID, img)
 	return att, err == nil, err
@@ -502,10 +518,11 @@ func (m *Manager) download(ctx context.Context, u string) ([]byte, error) {
 // previewButtons: для поста с будущей датой добавляет «⚡ Сейчас».
 func (m *Manager) previewButtons(st *State) *vk.Keyboard {
 	if m.OnDemand && st.PublishAt.IsZero() {
-		ok := vk.TextButton("✅ Опубликовать", payload("ap_now", st.ID), vk.ColorPositive)
+		ok := vk.TextButton("✅ Одобрить", payload("ap_now", st.ID), vk.ColorPositive)
 		redo := vk.TextButton("🔁 Другое фото", payload("ap_redo", st.ID), vk.ColorPrimary)
 		del := vk.TextButton("🗑 Удалить", payload("ap_no", st.ID), vk.ColorNegative)
-		return &vk.Keyboard{Inline: true, Buttons: [][]vk.Button{{ok}, {redo, del}}}
+		share := vk.TextButton("📤 Поделиться", payload("ap_share", st.ID), vk.ColorSecondary)
+		return &vk.Keyboard{Inline: true, Buttons: [][]vk.Button{{ok, share}, {redo, del}}}
 	}
 	kb := m.buttons(st.ID, false)
 	if st.PublishAt.After(m.now().Add(10 * time.Minute)) {
@@ -573,6 +590,8 @@ func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl
 		m.notify(ctx, m.approve(ctx, id, false), "", nil)
 	case cmd == "ap_now":
 		m.notify(ctx, m.approve(ctx, id, true), "", nil)
+	case cmd == "ap_share":
+		m.notify(ctx, m.sharePost(ctx, id), "", nil)
 	case isUrgent(text):
 		m.notify(ctx, m.urgent(ctx, text, photos), "", nil)
 		m.Process(ctx)
@@ -667,6 +686,22 @@ func (m *Manager) loc() *time.Location {
 	return time.Local
 }
 
+// sharePost отправляет текст поста отдельным сообщением для копирования и публикации вручную.
+func (m *Manager) sharePost(ctx context.Context, id string) string {
+	return m.withState(ctx, id, func(st *State) string {
+		if st.Status == StatusScheduled || st.Status == StatusPublished || st.Status == StatusManual {
+			return "Этот пост уже " + statusTitle[st.Status] + "."
+		}
+		// Отправляем текст отдельным сообщением для копирования
+		shareText := m.withCTA(st.Text)
+		m.notify(ctx, "📋 Текст для публикации (скопируйте и вставьте в группе):\n\n"+shareText, "", nil)
+		// Отмечаем как обработанный
+		st.Status = StatusManual
+		st.PublishAt = m.now()
+		return "✍️ Текст отправлен отдельным сообщением. Скопируйте его и опубликуйте в группе — добавьте сохранённые фото к посту.\n\nПост отмечен как обработанный."
+	})
+}
+
 func (m *Manager) approve(ctx context.Context, id string, immediately bool) string {
 	return m.withState(ctx, id, func(st *State) string {
 		switch st.Status {
@@ -681,6 +716,9 @@ func (m *Manager) approve(ctx context.Context, id string, immediately bool) stri
 			// текст и фото уже прислали в превью. Отмечаем пост как обработанный.
 			st.Status = StatusManual
 			st.PublishAt = m.now()
+			if m.OnDemand {
+				return "✍️ Текст и фото — в сообщении выше.\n\n1️⃣ Сохраните фото из превью\n2️⃣ Откройте группу VK\n3️⃣ Создайте новый пост и вставьте текст (нажмите фото в сообщении выше, чтобы скопировать)\n4️⃣ Добавьте сохранённые фото\n\nПост отмечен как обработанный."
+			}
 			return "✍️ Текст и фото — в сообщении выше. Опубликуйте их вручную в группе VK.\n\nПост отмечен как обработанный и больше не будет показан в очереди."
 		}
 		atts := st.Atts
