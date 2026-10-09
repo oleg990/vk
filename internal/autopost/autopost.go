@@ -122,6 +122,10 @@ type Manager struct {
 
 	mu  sync.Mutex // состояние постов
 	pmu sync.Mutex // одна подготовка картинок за раз
+
+	// Режим «Добавить источник»: ждём от Олега ссылки/материалы (см. source.go).
+	awaitSource bool
+	sourceNotes []string
 }
 
 // withCTA добавляет в пост ссылку «написать в сообщения группы» (vk.me открывает диалог с ботом).
@@ -586,6 +590,14 @@ func (m *Manager) HandleAdmin(ctx context.Context, userID int64, text string, pl
 	}
 	cmd, id := pl["cmd"], pl["id"]
 	switch {
+	case cmd == "adm_source":
+		m.notify(ctx, m.startSource(), "", nil)
+	case m.sourceWaiting() && cancelWord(text):
+		m.notify(ctx, m.finishSource(ctx, true), "", nil)
+	case m.sourceWaiting() && doneWord(text):
+		m.notify(ctx, m.finishSource(ctx, false), "", nil)
+	case m.sourceWaiting() && cmd == "" && strings.TrimSpace(text) != "":
+		m.notify(ctx, m.addSourceNote(text), "", nil)
 	case cmd == "ap_ok":
 		m.notify(ctx, m.approve(ctx, id, false), "", nil)
 	case cmd == "ap_now":

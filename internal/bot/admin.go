@@ -32,6 +32,7 @@ const adminHelp = `Кнопки панели — внизу. Текстом мо
 /очередь — все посты в запасе: нажмите номер, чтобы открыть и одобрить
 /срочно Текст — внеочередной пост (можно приложить фото)
 /обновить — забрать новые посты из очереди сейчас
+«📎 Добавить источник» — пришлите ссылки или инфо о застройщиках/новостях, Claude сам разберёт и обновит базу
 /помощь — этот список`
 
 func (b *Bot) admin(ctx context.Context, peer int64, text string) {
@@ -220,6 +221,7 @@ const (
 	admUrgent  = "adm_urgent"
 	admQueue   = "adm_queue"
 	admRefresh = "adm_refresh"
+	admSource  = "adm_source"
 	admMailing = "adm_mailing"
 	admHistory = "adm_history"
 	admStats   = "adm_stats"
@@ -236,6 +238,7 @@ func AdminKeyboard() *vk.Keyboard {
 	return &vk.Keyboard{Buttons: [][]vk.Button{
 		{btn("📝 Сделай пост", admPost, vk.ColorPositive), btn("⚡ Срочный пост", admUrgent, vk.ColorNegative)},
 		{btn("📋 Очередь постов", admQueue, vk.ColorPrimary), btn("🔄 Обновить", admRefresh, vk.ColorSecondary)},
+		{btn("📎 Добавить источник", admSource, vk.ColorPositive)},
 		{btn("📊 Статистика", admStats, vk.ColorPrimary), btn("📥 Заявки за сутки", admLeads, vk.ColorPrimary)},
 		{btn("📧 История постов", admHistory, vk.ColorPrimary), btn("📬 Рассылка", admMailing, vk.ColorPositive)},
 		{btn("💰 Продавцы", admSellers, vk.ColorSecondary), btn("🏠 Покупатели", admBuyers, vk.ColorSecondary)},

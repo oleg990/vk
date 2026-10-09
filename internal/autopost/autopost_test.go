@@ -460,6 +460,61 @@ func TestMakePostCommand(t *testing.T) {
 	}
 }
 
+func TestAddSourceFlow(t *testing.T) {
+	ctx := context.Background()
+	m, msg, _, _ := newManager(t)
+	w := &fakeWriter{}
+	m.Writer = w
+
+	// обычный текст без включённого режима не перехватывается
+	if m.HandleAdmin(ctx, 1, "просто текст", nil) {
+		t.Fatal("plain text must not be captured outside source mode")
+	}
+
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_source"})
+	if !strings.Contains(msg.last().text, "Пришлите ссылку") {
+		t.Fatalf("start prompt: %q", msg.last().text)
+	}
+	if !m.sourceWaiting() {
+		t.Fatal("must be waiting for source")
+	}
+
+	m.HandleAdmin(ctx, 1, "https://example.com/zhk-novy", nil)
+	if !strings.Contains(msg.last().text, "Добавлено (1)") {
+		t.Fatalf("note 1: %q", msg.last().text)
+	}
+	m.HandleAdmin(ctx, 1, "ещё новость про льготную ипотеку", nil)
+	if !strings.Contains(msg.last().text, "Добавлено (2)") {
+		t.Fatalf("note 2: %q", msg.last().text)
+	}
+
+	// посторонние команды во время сбора источников не обрабатываются как источник
+	if m.HandleAdmin(ctx, 999, "https://example.com/not-admin", nil) {
+		t.Fatal("non-admin must be ignored")
+	}
+
+	m.HandleAdmin(ctx, 1, "готово", nil)
+	if m.sourceWaiting() {
+		t.Fatal("source mode must end")
+	}
+	if len(w.wishes) != 1 || !strings.Contains(w.wishes[0], "https://example.com/zhk-novy") || !strings.Contains(w.wishes[0], "льготную ипотеку") {
+		t.Fatalf("wish must contain both notes: %q", w.wishes)
+	}
+	if !strings.Contains(msg.last().text, "Принял") {
+		t.Fatalf("finish reply: %q", msg.last().text)
+	}
+
+	// отмена без материалов
+	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "adm_source"})
+	m.HandleAdmin(ctx, 1, "отмена", nil)
+	if m.sourceWaiting() || !strings.Contains(msg.last().text, "Отменено") {
+		t.Fatalf("cancel: %q", msg.last().text)
+	}
+	if len(w.wishes) != 1 {
+		t.Fatalf("cancel must not fire writer again: %q", w.wishes)
+	}
+}
+
 func TestDraftsReleasedInstantly(t *testing.T) {
 	ctx := context.Background()
 	m, msg, _, _ := newManager(t,
@@ -547,13 +602,13 @@ func TestOnDemandOnePostAndPublishNow(t *testing.T) {
 			pv = s
 		}
 	}
-	if btn(pv.kb, "✅ Опубликовать") == nil || btn(pv.kb, "✅ По расписанию") != nil {
+	if btn(pv.kb, "✅ Одобрить") == nil || btn(pv.kb, "✅ По расписанию") != nil {
 		t.Fatalf("buttons: %+v", pv.kb)
 	}
 	if len(w.wishes) != 1 { // в запасе осталось < 3 — пополняем
 		t.Fatalf("refill expected: %q", w.wishes)
 	}
-	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ Опубликовать"))
+	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "✅ Одобрить"))
 	if wall.posts != 1 || wall.publishDate != 0 {
 		t.Fatalf("must publish now: posts=%d pd=%d", wall.posts, wall.publishDate)
 	}
@@ -614,7 +669,7 @@ func TestOnDemandDeleteFromStock(t *testing.T) {
 	m.OnDemand = true
 	m.HandleAdmin(ctx, 1, "", map[string]string{"cmd": "ap_pick", "id": "a"})
 	pv := msg.last()
-	if btn(pv.kb, "🗑 Удалить") == nil || btn(pv.kb, "✅ Опубликовать") == nil {
+	if btn(pv.kb, "🗑 Удалить") == nil || btn(pv.kb, "✅ Одобрить") == nil {
 		t.Fatalf("preview buttons: %+v", pv)
 	}
 	m.HandleAdmin(ctx, 1, "", btn(pv.kb, "🗑 Удалить"))
