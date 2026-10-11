@@ -237,6 +237,96 @@
     "publish_at": "2026-10-31T19:00:00+03:00"
   },
   {
+    "id": "2026-11-02-oprosnik-chto-vazhnee",
+    "slides": [
+      {
+        "query": "apartment building courtyard",
+        "prompt": "Photorealistic panel apartment buildings with green courtyard in a Russian provincial city, soft daylight, wide shot, architectural photography, no people, no text, no logos, natural colors",
+        "overlay": "posts/2026-11-02-oprosnik-chto-vazhnee/01.png?v=517402a5"
+      },
+      {
+        "overlay": "posts/2026-11-02-oprosnik-chto-vazhnee/02.png?v=d0692458"
+      },
+      {
+        "overlay": "posts/2026-11-02-oprosnik-chto-vazhnee/03.png?v=d3952200"
+      }
+    ],
+    "text": "Выбираете квартиру в Старом Осколе? Расставим приоритеты. 🤔\n\nЧто для вас важнее при покупке?\n\n1️⃣ Район — рядом школа, работа, привычная среда\n2️⃣ Цена — уложиться в бюджет и не переплатить\n3️⃣ Этаж — не первый и не последний\n\nПишите цифру в комментариях. Если важны сразу два пункта — назовите оба, подскажу, где обычно приходится идти на компромисс.\n\nА какой пункт для вас главный — и почему?\n\n#СтарыйОскол #вторичка #недвижимость #чтоважнее",
+    "publish_at": "2026-11-02T19:00:00+03:00"
+  },
+  {
+    "id": "2026-11-04-ceny-m2-staryy-oskol",
+    "slides": [
+      {
+        "query": "city apartment buildings aerial",
+        "prompt": "Photorealistic aerial view of residential neighborhood in a Russian city in autumn, soft daylight, architectural photography, no people, no text, no logos, natural colors",
+        "overlay": "posts/2026-11-04-ceny-m2-staryy-oskol/01.png?v=123917a4"
+      },
+      {
+        "overlay": "posts/2026-11-04-ceny-m2-staryy-oskol/02.png?v=f7a8c1ff"
+      },
+      {
+        "overlay": "posts/2026-11-04-ceny-m2-staryy-oskol/03.png?v=193586ff"
+      }
+    ],
+    "text": "Сколько стоит квадратный метр в Старом Осколе? 📊\n\nПо объявлениям на порталах недвижимости (Циан, Яндекс.Недвижимость, на 02.10.2026):\n\n🏠 Вторичка — около 93–108 тыс. ₽ за м², в зависимости от района и состояния. Средняя квартира — около 5,6 млн ₽\n🏗 Новостройки — предложения от около 70 тыс. ₽ за м², но разброс большой: зависит от дома и сроков\n\nЭто ориентиры по предложениям, а не итоговые цены сделок: реальная цена зависит от ремонта, этажа и торга. Порталы считают по-разному, поэтому цифры у них расходятся.\n\nХотите узнать, сколько стоит конкретная квартира? Напишите — сделаю оценку.\n\nА вы бы выбрали новостройку или вторичку за такие деньги?\n\n#СтарыйОскол #ценызаметр #вторичка #новостройки",
+    "publish_at": "2026-11-04T19:00:00+03:00"
+  },
+  {
+    "id": "2026-11-06-razbor-torg-vtorichka",
+    "slides": [
+      {
+        "query": "apartment keys handshake",
+        "prompt": "Photorealistic close-up of apartment keys and a contract on a wooden desk, soft window light, shallow depth of field, no people, no text, no logos, natural colors",
+        "overlay": "posts/2026-11-06-razbor-torg-vtorichka/01.png?v=522a6524"
+      },
+      {
+        "overlay": "posts/2026-11-06-razbor-torg-vtorichka/02.png?v=ecca95b9"
+      },
+      {
+        "overlay": "posts/2026-11-06-razbor-torg-vtorichka/03.png?v=c9ae30ad"
+      }
+    ],
+    "text": "Пятничный разбор: «Можно ли торговаться при покупке вторички?» 💬\n\nКоротко: можно и нужно — цена в объявлении почти всегда стартовая.\n\nКак торговаться спокойно:\n• Изучите похожие квартиры в доме и районе — аргумент про цену рынка сильнее эмоций\n• Осмотрите квартиру и назовите конкретные причины: ремонт, окна, сантехника, документы\n• Предлагайте разумную сумму: слишком низкая цена обычно закрывает разговор\n• Покупка без ипотеки и быстрый выход на сделку — повод просить скидку\n\nТорг — это договорённость, а не давление: у продавца тоже есть свои причины.\n\nА вы торговались при покупке квартиры? Какую скидку получилось выпросить?\n\n#СтарыйОскол #вторичка #пятничныйразбор #торг",
+    "publish_at": "2026-11-06T19:00:00+03:00"
+  },
+  {
+    "id": "2026-11-08-ipoteka-3-mln",
+    "slides": [
+      {
+        "query": "calculator keys home",
+        "prompt": "Photorealistic calculator, house keys and a small house model on a light desk, soft daylight, shallow depth of field, no people, no text, no logos, natural colors",
+        "overlay": "posts/2026-11-08-ipoteka-3-mln/01.png?v=2ebfc337"
+      },
+      {
+        "overlay": "posts/2026-11-08-ipoteka-3-mln/02.png?v=33e16409"
+      },
+      {
+        "overlay": "posts/2026-11-08-ipoteka-3-mln/03.png?v=08e0d6b5"
+      }
+    ],
+    "text": "Сколько платить по ипотеке на 3 млн ₽? 🧮\n\nПример по формуле аннуитетного платежа (без первоначального взноса и страховок), ежемесячно:\n\n• 14% на 20 лет — около 37 300 ₽\n• 16% на 20 лет — около 41 700 ₽\n• 18% на 20 лет — около 46 300 ₽\n• 16% на 15 лет — около 44 100 ₽\n\nКлючевая ставка ЦБ — 14% (с 27.07.2026, сайт cbr.ru); ставки банков зависят от программы и заёмщика, это расчёт-пример, а не предложение банка и не гарантия одобрения. Реальную ставку смотрите на сайте банка.\n\nХотите точный расчёт под ваш доход? Напишите в сообщения группы.\n\nНа какой платёж в месяц вы готовы ориентироваться?\n\n#ипотека #СтарыйОскол #вторичка #платёж",
+    "publish_at": "2026-11-08T19:00:00+03:00"
+  },
+  {
+    "id": "2026-11-10-podgotovit-kvartiru",
+    "slides": [
+      {
+        "query": "bright living room cozy",
+        "prompt": "Photorealistic bright tidy living room in an apartment, sofa, large window, daylight, interior photography, no people, no text, no logos, natural colors",
+        "overlay": "posts/2026-11-10-podgotovit-kvartiru/01.png?v=2aac2aef"
+      },
+      {
+        "overlay": "posts/2026-11-10-podgotovit-kvartiru/02.png?v=bda27150"
+      },
+      {
+        "overlay": "posts/2026-11-10-podgotovit-kvartiru/03.png?v=4b641f70"
+      }
+    ],
+    "text": "Продаёте квартиру в Старом Осколе? Подготовка — половина успеха. 🔑\n\nЧто стоит сделать до показов:\n\n1️⃣ Расхламить и убрать лишнее — комнаты станут просторнее\n2️⃣ Вымыть окна, сантехнику, привести в порядок мелкий ремонт\n3️⃣ Проветрить и убрать запахи, добавить света\n4️⃣ Собрать документы заранее: выписка из ЕГРН, паспорта собственников\n5️⃣ Сделать светлые фото днём\n\nКрупный ремонт перед продажей нужен не всегда — чаще достаточно аккуратной косметики.\n\nПомогу оценить квартиру и подскажу, что стоит делать, а что нет. Напишите в сообщения группы.\n\nЧто вы бы сделали первым делом перед продажей?\n\n#СтарыйОскол #продажаквартиры #вторичка #недвижимость",
+    "publish_at": "2026-11-10T19:00:00+03:00"
+  },
+  {
     "id": "2026-10-02-draft-a101-msk",
     "slides": [
       {
