@@ -30,5 +30,10 @@
     "name": "ГК «Крайс»",
     "city": "Воронеж",
     "url": "https://krays.ru/"
+  },
+  {
+    "name": "ВДК (Воронежская Девелоперская Компания)",
+    "city": "Воронеж",
+    "url": "https://vrndk.ru/projects/apartments"
   }
 ]
